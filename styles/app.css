@@ -1,0 +1,134 @@
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #111;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  display: block;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+}
+
+.application-root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.application-surface {
+  background: #222;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.application-top-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.preview-panel {
+  position: relative;
+  background: #000;
+  overflow: hidden;
+}
+
+.preview-status-message {
+  color: #fff;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.live-video-container,
+.live-video-container video,
+.playback-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
+.controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  background: #1a1a1a;
+}
+
+.controls-button {
+  font-size: 20px;
+  padding: 16px;
+  cursor: pointer;
+}
+
+.controls-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.timeline-panel {
+  background: #181818;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 10px;
+}
+
+.timeline-scroll-strip {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.timeline-scroll-strip::-webkit-scrollbar {
+  height: 0;
+}
+
+.timeline-gap {
+  width: 18px;
+  height: 70%;
+  flex: 0 0 auto;
+}
+
+.timeline-frame {
+  width: 100px;
+  height: 70%;
+  padding: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #000;
+}
+
+.timeline-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.is-selected {
+  outline: 3px solid #fff;
+}

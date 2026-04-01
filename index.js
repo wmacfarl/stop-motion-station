@@ -1,17 +1,23 @@
+import mainView from "./views/main-view.js";
+import applicationStore from "./stores/application-store.js";
 /* index.js */
 import MainView from "./views/main-view.js";
 import store from "./store/store.js";
 
+const application = Choo();
 
-const choo = Choo({ hash: true });
-function getBasePath() {
-  return window.location.hostname === "wmacfarl.github.io"
-    ? "/stop-motion-station"
-    : "";
+application.use(applicationStore);
+application.route("*", mainView);
+
+export default application;
+
+if (typeof window !== "undefined") {
+  application.mount("#app");
+
+  window.requestAnimationFrame(() => {
+    application.emitter.emit("application:startup");
+  });
 }
-const path = getBasePath();
-choo.use(store);
-
 choo.route(`/${path}`, MainView);
 console.log(`🛣️  Mounted main view at /${path}/`);
 choo.mount("#app");
