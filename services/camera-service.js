@@ -35,11 +35,18 @@ class CameraService {
       throw new Error("Camera API unavailable. Use HTTPS or localhost in a supported browser.");
     }
 
-    this.mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
+    // ask for a 1.777777778 aspect ratio video feed, but allow the browser to provide the closest available match
+   
+    const requestedAspectRatio = 16 / 9;
+    const mediaStreamConstraints = {
+      video: {
+        aspectRatio: requestedAspectRatio,
+      },
       audio: false,
-    });
+    };
+    this.mediaStream = await navigator.mediaDevices.getUserMedia(mediaStreamConstraints);
 
+    
     this.videoElement.srcObject = this.mediaStream;
   }
 
