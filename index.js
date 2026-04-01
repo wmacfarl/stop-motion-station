@@ -3,9 +3,14 @@ import APP_CONFIG from "./data/app-config.js";
 import MainView from "./views/main-view.js";
 import store from "./store/store.js";
 
-const path = APP_CONFIG.srcFolder;
-const choo = Choo({ hash: true });
 
+const choo = Choo({ hash: true });
+function getBasePath() {
+  return window.location.hostname === "wmacfarl.github.io"
+    ? "/stop-motion-station"
+    : "";
+}
+const path = getBasePath();
 choo.use(store);
 
 // browser
