@@ -31,11 +31,12 @@ class CameraService {
   }
 
   async startPreviewInternal() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Camera API unavailable. Use HTTPS or localhost in a supported browser.");
+    }
+
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-  //      width: { ideal: 1280 },
-  //      height: { ideal: 720 },
-      },
+      video: true,
       audio: false,
     });
 
@@ -77,16 +78,6 @@ class CameraService {
     return this.videoElement;
   }
 
-  ensurePreviewIsPlaying() {
-    const hasMediaStream = Boolean(this.videoElement.srcObject);
-    const isVideoPaused = this.videoElement.paused;
-
-    if (!hasMediaStream || !isVideoPaused) {
-      return;
-    }
-
-    this.videoElement.play().catch(() => {});
-  }
   ensurePreviewIsPlaying() {
     if (!this.videoElement.srcObject) {
       return;

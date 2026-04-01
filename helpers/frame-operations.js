@@ -1,6 +1,6 @@
 export function createInitialApplicationState() {
   return {
-    cameraStatus: "booting",
+    cameraStatus: "idle",
     cameraErrorMessage: null,
     frames: [],
     selectedTimelineItem: {

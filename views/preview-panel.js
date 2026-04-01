@@ -4,6 +4,17 @@ import cameraService from "../services/camera-service.js";
 export default function previewPanel(state) {
   const { previewWidth, previewHeight } = state.appSurfaceLayout;
 
+  if (state.cameraStatus === "idle") {
+    return html`
+      <section
+        class="preview-panel"
+        style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
+      >
+        <div class="preview-status-message">Click "Start Camera" to request camera permissions.</div>
+      </section>
+    `;
+  }
+
   if (state.cameraStatus === "requesting" || state.cameraStatus === "booting") {
     return html`
       <section
