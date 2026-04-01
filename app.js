@@ -25,18 +25,40 @@ export default function applicationStore(state, emitter) {
 
   async function captureAndInsertFrameRecord() {
     const frameIdentifier = createFrameId();
-    const capturedFrameData = await cameraService.captureFrameRecordData();
+    const captureFlowStartedAtMilliseconds = performance.now();
 
-    const originalStorageKey = await frameStorageService.saveOriginalFrameBlob({
-      frameId: frameIdentifier,
-      blob: capturedFrameData.originalBlob,
+    const capturedFrameData = await measureAsyncOperationDuration({
+      operationName: "camera-frame-capture",
+      frameIdentifier,
+      operation: () => cameraService.captureFrameRecordData(),
+    });
+
+    const originalFrameSaveResult = await measureAsyncOperationDuration({
+      operationName: "original-frame-save",
+      frameIdentifier,
+      operation: () => frameStorageService.saveOriginalFrameBlob({
+        frameId: frameIdentifier,
+        blob: capturedFrameData.originalBlob,
+      }),
+    });
+
+    const totalCaptureFlowDurationMilliseconds = performance.now()
+      - captureFlowStartedAtMilliseconds;
+
+    console.info("Frame capture flow timing", {
+      frameIdentifier,
+      captureDurationMilliseconds: capturedFrameData.captureDurationMilliseconds,
+      originalFrameSaveDurationMilliseconds: originalFrameSaveResult.captureDurationMilliseconds,
+      totalCaptureFlowDurationMilliseconds,
+      originalBlobSizeInBytes: capturedFrameData.originalBlobSizeInBytes,
+      timelineBlobSizeInBytes: capturedFrameData.timelineBlobSizeInBytes,
     });
 
     const capturedFrameRecordData = {
       id: frameIdentifier,
       timelineImageSource: capturedFrameData.timelineImageSource,
       previewImageSource: capturedFrameData.previewImageSource,
-      originalStorageKey,
+      originalStorageKey: originalFrameSaveResult.operationResult,
       width: capturedFrameData.width,
       height: capturedFrameData.height,
     };
@@ -49,6 +71,26 @@ export default function applicationStore(state, emitter) {
 
     state.frames = insertionResult.frames;
     state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+  }
+
+  async function measureAsyncOperationDuration({ operationName, frameIdentifier, operation }) {
+    const operationStartedAtMilliseconds = performance.now();
+    const operationResult = await operation();
+    const captureDurationMilliseconds = performance.now() - operationStartedAtMilliseconds;
+
+    console.info("Frame operation timing", {
+      frameIdentifier,
+      operationName,
+      captureDurationMilliseconds,
+    });
+
+    return {
+      operationResult,
+      captureDurationMilliseconds,
+      ...(typeof operationResult === "object" && operationResult !== null
+        ? operationResult
+        : {}),
+    };
   }
 
   async function cleanupDeletedFrameAssets(deletedFrameRecord) {
