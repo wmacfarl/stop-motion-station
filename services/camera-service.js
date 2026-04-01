@@ -1,9 +1,9 @@
 class CameraService {
   constructor() {
     this.videoElement = document.createElement("video");
-    this.videoElement.setAttribute("autoplay", "");
-    this.videoElement.setAttribute("playsinline", "");
-    this.videoElement.setAttribute("muted", "");
+    this.videoElement.autoplay = true;
+    this.videoElement.playsInline = true;
+    this.videoElement.muted = true;
 
     this.captureCanvasElement = document.createElement("canvas");
     this.mediaStream = null;
@@ -43,23 +43,24 @@ class CameraService {
 
     await new Promise((resolve, reject) => {
       const handleLoadedMetadata = () => {
-        this.videoElement
-          .play()
-          .then(resolve)
-          .catch(reject);
+        this.videoElement.play().then(resolve).catch(reject);
       };
 
-      this.videoElement.addEventListener("loadedmetadata", handleLoadedMetadata, {
-        once: true,
-      });
+      this.videoElement.addEventListener(
+        "loadedmetadata",
+        handleLoadedMetadata,
+        {
+          once: true,
+        },
+      );
     });
 
     await new Promise((resolve) => {
       const verifyVideoIsProducingFrames = () => {
         if (
-          this.videoElement.videoWidth > 0
-          && this.videoElement.videoHeight > 0
-          && this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+          this.videoElement.videoWidth > 0 &&
+          this.videoElement.videoHeight > 0 &&
+          this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
         ) {
           resolve();
           return;
@@ -76,6 +77,26 @@ class CameraService {
     return this.videoElement;
   }
 
+  ensurePreviewIsPlaying() {
+    const hasMediaStream = Boolean(this.videoElement.srcObject);
+    const isVideoPaused = this.videoElement.paused;
+
+    if (!hasMediaStream || !isVideoPaused) {
+      return;
+    }
+
+    this.videoElement.play().catch(() => {});
+  }
+  ensurePreviewIsPlaying() {
+    if (!this.videoElement.srcObject) {
+      return;
+    }
+
+    if (this.videoElement.paused) {
+      this.videoElement.play().catch(() => {});
+    }
+  }
+
   captureCurrentFrameImageSource() {
     const frameWidth = this.videoElement.videoWidth;
     const frameHeight = this.videoElement.videoHeight;
@@ -84,7 +105,13 @@ class CameraService {
     this.captureCanvasElement.height = frameHeight;
 
     const renderingContext = this.captureCanvasElement.getContext("2d");
-    renderingContext.drawImage(this.videoElement, 0, 0, frameWidth, frameHeight);
+    renderingContext.drawImage(
+      this.videoElement,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+    );
 
     return this.captureCanvasElement.toDataURL("image/png");
   }
