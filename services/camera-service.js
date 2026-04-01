@@ -79,6 +79,7 @@ class CameraService {
   }
 
   async captureFrameRecordData() {
+    const captureStartedAtMilliseconds = performance.now();
     const frameWidth = this.videoElement.videoWidth;
     const frameHeight = this.videoElement.videoHeight;
 
@@ -145,11 +146,15 @@ class CameraService {
     );
 
     const timelineImageSource = URL.createObjectURL(timelineBlob);
+    const captureDurationMilliseconds = performance.now() - captureStartedAtMilliseconds;
 
     return {
       timelineImageSource,
       previewImageSource: timelineImageSource,
       originalBlob,
+      originalBlobSizeInBytes: originalBlob.size,
+      timelineBlobSizeInBytes: timelineBlob.size,
+      captureDurationMilliseconds,
       width: frameWidth,
       height: frameHeight,
     };
