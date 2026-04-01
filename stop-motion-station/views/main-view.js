@@ -1,5 +1,5 @@
 // selfie-sprite/views/main-view.js
-import APP_CONFIG from "../data/constants.js";
+import APP_CONFIG from "../data/app-config.js";
 
 export default function MainView(state, emit) {
   return html`
