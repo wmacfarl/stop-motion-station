@@ -23,10 +23,9 @@ export default function applicationStore(state, emitter) {
     document.title = "Stop Motion";
   });
 
-  emitter.on("application:startup", async () => {
-    updateApplicationLayoutFromViewport();
-    emitter.emit("render");
+  updateApplicationLayoutFromViewport();
 
+  emitter.on("application:startup", () => {
     window.addEventListener("resize", () => {
       emitter.emit("application:resize");
     });
