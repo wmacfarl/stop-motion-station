@@ -6,7 +6,7 @@ export default function mainView(state, emit) {
   const applicationSurfaceLayout = state.appSurfaceLayout;
 
   return html`
-    <main class="application-root">
+    <div id="app" class="application-root">
       <section
         class="application-surface"
         style=${`
