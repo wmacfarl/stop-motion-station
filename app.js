@@ -85,9 +85,13 @@ export default function applicationStore(state, emitter) {
   updateApplicationLayoutFromViewport();
 
   emitter.on("application:startup", async () => {
-    window.addEventListener("resize", () => {
+    const handleViewportChange = () => {
       emitter.emit("application:resize");
-    });
+    };
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    document.addEventListener("fullscreenchange", handleViewportChange);
 
     await frameStorageService.initialize();
     emitter.emit("render");

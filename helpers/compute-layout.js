@@ -1,5 +1,5 @@
 const applicationAspectRatio = 16 / 9;
-const surfaceMarginRatio = 0.04;
+const surfaceMarginRatio = 0;
 const controlsWidthRatio = 0.18;
 const timelineHeightRatio = 0.2;
 
