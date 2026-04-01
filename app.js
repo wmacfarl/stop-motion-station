@@ -1,6 +1,8 @@
 import cameraService from "./services/camera-service.js";
+import frameStorageService from "./services/frame-storage-service.js";
 import playbackController from "./services/playback-controller.js";
 import computeLayout from "./helpers/compute-layout.js";
+import createFrameId from "./helpers/create-frame-id.js";
 import {
   createInitialApplicationState,
   insertCapturedFrameAtCurrentSelection,
@@ -12,6 +14,8 @@ import {
 export default function applicationStore(state, emitter) {
   Object.assign(state, createInitialApplicationState());
 
+  let timelapseCaptureInProgress = false;
+
   function updateApplicationLayoutFromViewport() {
     state.appSurfaceLayout = computeLayout({
       viewportWidth: window.innerWidth,
@@ -19,18 +23,82 @@ export default function applicationStore(state, emitter) {
     });
   }
 
+  async function captureAndInsertFrameRecord() {
+    const frameIdentifier = createFrameId();
+    const capturedFrameData = await cameraService.captureFrameRecordData();
+
+    const originalStorageKey = await frameStorageService.saveOriginalFrameBlob({
+      frameId: frameIdentifier,
+      blob: capturedFrameData.originalBlob,
+    });
+
+    const capturedFrameRecordData = {
+      id: frameIdentifier,
+      timelineImageSource: capturedFrameData.timelineImageSource,
+      previewImageSource: capturedFrameData.previewImageSource,
+      originalStorageKey,
+      width: capturedFrameData.width,
+      height: capturedFrameData.height,
+    };
+
+    const insertionResult = insertCapturedFrameAtCurrentSelection({
+      frames: state.frames,
+      selectedTimelineItem: state.selectedTimelineItem,
+      capturedFrameRecordData,
+    });
+
+    state.frames = insertionResult.frames;
+    state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+  }
+
+  async function cleanupDeletedFrameAssets(deletedFrameRecord) {
+    if (!deletedFrameRecord) {
+      return;
+    }
+
+    if (deletedFrameRecord.timelineImageSource?.startsWith("blob:")) {
+      URL.revokeObjectURL(deletedFrameRecord.timelineImageSource);
+    }
+
+    if (
+      deletedFrameRecord.previewImageSource
+      && deletedFrameRecord.previewImageSource !== deletedFrameRecord.timelineImageSource
+      && deletedFrameRecord.previewImageSource.startsWith("blob:")
+    ) {
+      URL.revokeObjectURL(deletedFrameRecord.previewImageSource);
+    }
+
+    await frameStorageService.deleteOriginalFrame({
+      storageKey: deletedFrameRecord.originalStorageKey,
+    });
+  }
+
+  function stopTimelapseCaptureInterval() {
+    if (state.timelapseTimerIdentifier !== null) {
+      window.clearInterval(state.timelapseTimerIdentifier);
+      state.timelapseTimerIdentifier = null;
+    }
+
+    timelapseCaptureInProgress = false;
+  }
+
   updateApplicationLayoutFromViewport();
 
-  emitter.on("application:startup", () => {
+  emitter.on("application:startup", async () => {
     window.addEventListener("resize", () => {
       emitter.emit("application:resize");
     });
 
+    await frameStorageService.initialize();
     emitter.emit("render");
   });
 
   emitter.on("camera:request-access", async () => {
-    if (state.cameraStatus === "requesting" || state.cameraStatus === "ready") {
+    if (
+      state.cameraStatus === "requesting"
+      || state.cameraStatus === "ready"
+      || state.isTimelapseCapturing
+    ) {
       return;
     }
 
@@ -55,7 +123,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("timeline:select-gap", (gapIndex) => {
-    if (state.isPlaying) {
+    if (state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -64,7 +132,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("timeline:select-frame", (frameIndex) => {
-    if (state.isPlaying) {
+    if (state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -73,21 +141,12 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("frames:capture", async () => {
-    if (state.cameraStatus !== "ready" || state.isPlaying) {
+    if (state.cameraStatus !== "ready" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
     try {
-      const capturedFrameRecordData = await cameraService.captureFrameRecordData();
-
-      const insertionResult = insertCapturedFrameAtCurrentSelection({
-        frames: state.frames,
-        selectedTimelineItem: state.selectedTimelineItem,
-        capturedFrameRecordData,
-      });
-
-      state.frames = insertionResult.frames;
-      state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+      await captureAndInsertFrameRecord();
     } catch (captureError) {
       console.error("Failed to capture frame:", captureError);
     }
@@ -95,8 +154,50 @@ export default function applicationStore(state, emitter) {
     emitter.emit("render");
   });
 
-  emitter.on("frames:delete-selected", () => {
-    if (state.isPlaying || !canDeleteSelectedFrame(state)) {
+  emitter.on("timelapse:start", () => {
+    if (state.isTimelapseCapturing || state.cameraStatus !== "ready" || state.isPlaying) {
+      return;
+    }
+
+    state.isTimelapseCapturing = true;
+
+    const captureEveryInterval = async () => {
+      if (timelapseCaptureInProgress || !state.isTimelapseCapturing) {
+        return;
+      }
+
+      timelapseCaptureInProgress = true;
+
+      try {
+        await captureAndInsertFrameRecord();
+      } catch (captureError) {
+        console.error("Failed to capture timelapse frame:", captureError);
+      } finally {
+        timelapseCaptureInProgress = false;
+        emitter.emit("render");
+      }
+    };
+
+    state.timelapseTimerIdentifier = window.setInterval(
+      captureEveryInterval,
+      state.timelapseIntervalMilliseconds,
+    );
+
+    emitter.emit("render");
+  });
+
+  emitter.on("timelapse:stop", () => {
+    if (!state.isTimelapseCapturing) {
+      return;
+    }
+
+    stopTimelapseCaptureInterval();
+    state.isTimelapseCapturing = false;
+    emitter.emit("render");
+  });
+
+  emitter.on("frames:delete-selected", async () => {
+    if (state.isPlaying || state.isTimelapseCapturing || !canDeleteSelectedFrame(state)) {
       return;
     }
 
@@ -107,11 +208,18 @@ export default function applicationStore(state, emitter) {
 
     state.frames = deletionResult.frames;
     state.selectedTimelineItem = deletionResult.selectedTimelineItem;
+
+    try {
+      await cleanupDeletedFrameAssets(deletionResult.deletedFrameRecord);
+    } catch (deleteError) {
+      console.error("Failed to clean up deleted frame assets:", deleteError);
+    }
+
     emitter.emit("render");
   });
 
   emitter.on("playback:start", () => {
-    if (state.isPlaying || !canPlayFrames(state)) {
+    if (state.isPlaying || state.isTimelapseCapturing || !canPlayFrames(state)) {
       return;
     }
 

@@ -1,10 +1,24 @@
 export default function controlsPanel(state, emit) {
   const { controlsWidth, previewHeight } = state.appSurfaceLayout;
 
-  const canRequestCameraAccess = state.cameraStatus !== "requesting" && state.cameraStatus !== "ready" && !state.isPlaying;
-  const canCaptureFrames = state.cameraStatus === "ready" && !state.isPlaying;
-  const canDeleteFrame = state.selectedTimelineItem.type === "frame" && !state.isPlaying;
-  const canPlaySequence = state.frames.length > 0 && !state.isPlaying;
+  const canRequestCameraAccess = state.cameraStatus !== "requesting"
+    && state.cameraStatus !== "ready"
+    && !state.isPlaying
+    && !state.isTimelapseCapturing;
+
+  const canCaptureFrames = state.cameraStatus === "ready"
+    && !state.isPlaying
+    && !state.isTimelapseCapturing;
+
+  const canToggleTimelapseCapture = state.cameraStatus === "ready" && !state.isPlaying;
+
+  const canDeleteFrame = state.selectedTimelineItem.type === "frame"
+    && !state.isPlaying
+    && !state.isTimelapseCapturing;
+
+  const canPlaySequence = state.frames.length > 0
+    && !state.isPlaying
+    && !state.isTimelapseCapturing;
 
   return html`
     <aside class="controls-panel" style=${`width: ${controlsWidth}px; height: ${previewHeight}px;`}>
@@ -22,6 +36,14 @@ export default function controlsPanel(state, emit) {
         onclick=${() => emit("frames:capture")}
       >
         Capture
+      </button>
+
+      <button
+        class="controls-button"
+        disabled=${!canToggleTimelapseCapture}
+        onclick=${() => emit(state.isTimelapseCapturing ? "timelapse:stop" : "timelapse:start")}
+      >
+        ${state.isTimelapseCapturing ? "Stop Capturing" : "Start Capturing"}
       </button>
 
       <button
