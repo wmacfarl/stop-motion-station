@@ -19,10 +19,6 @@ export default function applicationStore(state, emitter) {
     });
   }
 
-  emitter.on("DOMContentLoaded", () => {
-    document.title = "Stop Motion";
-  });
-
   updateApplicationLayoutFromViewport();
 
   emitter.on("application:startup", () => {
@@ -44,7 +40,6 @@ export default function applicationStore(state, emitter) {
 
     try {
       await cameraService.startPreview();
-      state.cameraService = cameraService;
       state.cameraStatus = "ready";
     } catch (cameraStartupError) {
       state.cameraStatus = "error";
@@ -77,20 +72,26 @@ export default function applicationStore(state, emitter) {
     emitter.emit("render");
   });
 
-  emitter.on("frames:capture", () => {
+  emitter.on("frames:capture", async () => {
     if (state.cameraStatus !== "ready" || state.isPlaying) {
       return;
     }
 
-    const capturedFrameImageSource = cameraService.captureCurrentFrameImageSource();
-    const insertionResult = insertCapturedFrameAtCurrentSelection({
-      frames: state.frames,
-      selectedTimelineItem: state.selectedTimelineItem,
-      capturedFrameImageSource,
-    });
+    try {
+      const capturedFrameRecordData = await cameraService.captureFrameRecordData();
 
-    state.frames = insertionResult.frames;
-    state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+      const insertionResult = insertCapturedFrameAtCurrentSelection({
+        frames: state.frames,
+        selectedTimelineItem: state.selectedTimelineItem,
+        capturedFrameRecordData,
+      });
+
+      state.frames = insertionResult.frames;
+      state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+    } catch (captureError) {
+      console.error("Failed to capture frame:", captureError);
+    }
+
     emitter.emit("render");
   });
 

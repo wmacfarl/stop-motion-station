@@ -21,7 +21,11 @@ function renderFrameButton(state, emit, frame, frameIndex) {
       onclick=${() => emit("timeline:select-frame", frameIndex)}
       aria-label=${`Select frame ${frameIndex + 1}`}
     >
-      <img src=${frame.imageSource} draggable="false" alt=${`Frame ${frameIndex + 1}`} />
+      <img
+        src=${frame.timelineImageSource}
+        draggable="false"
+        alt=${`Frame ${frameIndex + 1}`}
+      />
     </button>
   `;
 }

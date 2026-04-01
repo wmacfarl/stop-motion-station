@@ -20,19 +20,29 @@ export function createInitialApplicationState() {
   };
 }
 
-function createFrameRecord(imageSource) {
+function createFrameRecord({
+  timelineImageSource,
+  previewImageSource,
+  originalBlob,
+  width,
+  height,
+}) {
   return {
     id: `frame-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    imageSource,
+    timelineImageSource,
+    previewImageSource,
+    originalBlob,
+    width,
+    height,
   };
 }
 
 export function insertCapturedFrameAtCurrentSelection({
   frames,
   selectedTimelineItem,
-  capturedFrameImageSource,
+  capturedFrameRecordData,
 }) {
-  const newFrameRecord = createFrameRecord(capturedFrameImageSource);
+  const newFrameRecord = createFrameRecord(capturedFrameRecordData);
 
   const insertIndex = selectedTimelineItem.type === "gap"
     ? selectedTimelineItem.index
@@ -61,6 +71,20 @@ export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
   const frameIndexToDelete = selectedTimelineItem.index;
   const updatedFrames = [...frames];
   updatedFrames.splice(frameIndexToDelete, 1);
+
+  const deletedFrameRecord = frames[frameIndexToDelete];
+
+  if (deletedFrameRecord?.timelineImageSource?.startsWith("blob:")) {
+    URL.revokeObjectURL(deletedFrameRecord.timelineImageSource);
+  }
+
+  if (
+    deletedFrameRecord?.previewImageSource
+    && deletedFrameRecord.previewImageSource !== deletedFrameRecord.timelineImageSource
+    && deletedFrameRecord.previewImageSource.startsWith("blob:")
+  ) {
+    URL.revokeObjectURL(deletedFrameRecord.previewImageSource);
+  }
 
   return {
     frames: updatedFrames,

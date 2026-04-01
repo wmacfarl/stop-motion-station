@@ -1,4 +1,3 @@
-
 import cameraService from "../services/camera-service.js";
 
 export default function previewPanel(state) {
@@ -49,7 +48,7 @@ export default function previewPanel(state) {
       >
         <img
           class="playback-preview-image"
-          src=${playbackFrameRecord.imageSource}
+          src=${playbackFrameRecord.previewImageSource}
           draggable="false"
           alt=${`Playback frame ${state.playbackFrameIndex + 1}`}
         />

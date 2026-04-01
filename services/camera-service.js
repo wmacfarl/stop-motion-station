@@ -1,12 +1,20 @@
 class CameraService {
   constructor() {
-    console.log("Initializing camera service...");
     this.videoElement = document.createElement("video");
     this.videoElement.autoplay = true;
     this.videoElement.playsInline = true;
     this.videoElement.muted = true;
 
     this.captureCanvasElement = document.createElement("canvas");
+    this.captureRenderingContext = this.captureCanvasElement.getContext("2d", {
+      alpha: false,
+    });
+
+    this.thumbnailCanvasElement = document.createElement("canvas");
+    this.thumbnailRenderingContext = this.thumbnailCanvasElement.getContext("2d", {
+      alpha: false,
+    });
+
     this.mediaStream = null;
     this.hasStartedPreview = false;
     this.startPreviewPromise = null;
@@ -33,32 +41,20 @@ class CameraService {
 
   async startPreviewInternal() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error(
-        "Camera API unavailable. Use HTTPS or localhost in a supported browser.",
-      );
+      throw new Error("Camera API unavailable. Use HTTPS or localhost in a supported browser.");
     }
+
     const requestedAspectRatio = 16 / 9;
-    console.log("Requesting camera with aspect ratio:", requestedAspectRatio, "no other constraints");
+
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        aspectRatio: { ideal: requestedAspectRatio }
+        aspectRatio: { ideal: requestedAspectRatio },
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 360 },
       },
       audio: false,
     });
 
-    const videoTrack = this.mediaStream.getVideoTracks()[0];
-    console.log("initial settings:", videoTrack.getSettings());
-
-    try {
-      await videoTrack.applyConstraints({
-        aspectRatio: { ideal: requestedAspectRatio },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      });
-      console.log("after applyConstraints:", videoTrack.getSettings());
-    } catch (error) {
-      console.warn("Could not raise resolution:", error);
-    }
     this.videoElement.srcObject = this.mediaStream;
   }
 
@@ -77,23 +73,28 @@ class CameraService {
 
     if (this.videoElement.paused) {
       this.videoElement.play().catch((previewPlaybackError) => {
-        console.error(
-          "Failed to start preview playback:",
-          previewPlaybackError,
-        );
+        console.error("Failed to start preview playback:", previewPlaybackError);
       });
     }
   }
 
-  captureCurrentFrameImageSource() {
+  async captureFrameRecordData() {
     const frameWidth = this.videoElement.videoWidth;
     const frameHeight = this.videoElement.videoHeight;
 
-    this.captureCanvasElement.width = frameWidth;
-    this.captureCanvasElement.height = frameHeight;
+    if (!frameWidth || !frameHeight) {
+      throw new Error("Camera preview is not ready to capture a frame yet.");
+    }
 
-    const renderingContext = this.captureCanvasElement.getContext("2d");
-    renderingContext.drawImage(
+    if (this.captureCanvasElement.width !== frameWidth) {
+      this.captureCanvasElement.width = frameWidth;
+    }
+
+    if (this.captureCanvasElement.height !== frameHeight) {
+      this.captureCanvasElement.height = frameHeight;
+    }
+
+    this.captureRenderingContext.drawImage(
       this.videoElement,
       0,
       0,
@@ -101,10 +102,91 @@ class CameraService {
       frameHeight,
     );
 
-    return this.captureCanvasElement.toDataURL("image/png");
+    const originalBlob = await canvasToBlob(
+      this.captureCanvasElement,
+      "image/jpeg",
+      0.9,
+    );
+
+    const timelineMaximumWidth = 320;
+    const timelineMaximumHeight = 180;
+
+    const timelineSize = fitWithinBounds({
+      sourceWidth: frameWidth,
+      sourceHeight: frameHeight,
+      maximumWidth: timelineMaximumWidth,
+      maximumHeight: timelineMaximumHeight,
+    });
+
+    if (this.thumbnailCanvasElement.width !== timelineSize.width) {
+      this.thumbnailCanvasElement.width = timelineSize.width;
+    }
+
+    if (this.thumbnailCanvasElement.height !== timelineSize.height) {
+      this.thumbnailCanvasElement.height = timelineSize.height;
+    }
+
+    this.thumbnailRenderingContext.drawImage(
+      this.captureCanvasElement,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+      0,
+      0,
+      timelineSize.width,
+      timelineSize.height,
+    );
+
+    const timelineBlob = await canvasToBlob(
+      this.thumbnailCanvasElement,
+      "image/jpeg",
+      0.8,
+    );
+
+    const timelineImageSource = URL.createObjectURL(timelineBlob);
+
+    return {
+      timelineImageSource,
+      previewImageSource: timelineImageSource,
+      originalBlob,
+      width: frameWidth,
+      height: frameHeight,
+    };
   }
+}
+
+function canvasToBlob(canvasElement, type, quality) {
+  return new Promise((resolve, reject) => {
+    canvasElement.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Failed to encode canvas image."));
+        return;
+      }
+
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+function fitWithinBounds({
+  sourceWidth,
+  sourceHeight,
+  maximumWidth,
+  maximumHeight,
+}) {
+  const scale = Math.min(
+    maximumWidth / sourceWidth,
+    maximumHeight / sourceHeight,
+  );
+
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
+  };
 }
 
 const cameraService = new CameraService();
 window.cameraService = cameraService;
+
 export default cameraService;
