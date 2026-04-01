@@ -26,7 +26,7 @@ function renderFrameButton(state, emit, frame, frameIndex) {
   `;
 }
 
-export default function renderTimelinePanel(state, emit) {
+export default function timelinePanel(state, emit) {
   const { width, timelineHeight } = state.appSurfaceLayout;
   const timelineItems = [];
 
@@ -39,13 +39,8 @@ export default function renderTimelinePanel(state, emit) {
   }
 
   return html`
-    <section
-      class="timeline-panel"
-      style=${`width: ${width}px; height: ${timelineHeight}px;`}
-    >
-      <div class="timeline-scroll-strip">
-        ${timelineItems}
-      </div>
+    <section class="timeline-panel" style=${`width: ${width}px; height: ${timelineHeight}px;`}>
+      <div class="timeline-scroll-strip">${timelineItems}</div>
     </section>
   `;
 }

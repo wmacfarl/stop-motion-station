@@ -1,6 +1,6 @@
-import renderPreviewPanel from "./render-preview-panel.js";
-import renderControlsPanel from "./render-controls-panel.js";
-import renderTimelinePanel from "./render-timeline-panel.js";
+import previewPanel from "./preview-panel.js";
+import controlsPanel from "./controls-panel.js";
+import timelinePanel from "./timeline-panel.js";
 
 export default function mainView(state, emit) {
   const applicationSurfaceLayout = state.appSurfaceLayout;
@@ -15,11 +15,11 @@ export default function mainView(state, emit) {
         `}
       >
         <div class="application-top-row">
-          ${renderPreviewPanel(state, emit)}
-          ${renderControlsPanel(state, emit)}
+          ${previewPanel(state, emit)}
+          ${controlsPanel(state, emit)}
         </div>
 
-        ${renderTimelinePanel(state, emit)}
+        ${timelinePanel(state, emit)}
       </section>
     </main>
   `;

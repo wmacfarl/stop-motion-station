@@ -3,10 +3,7 @@ const surfaceMarginRatio = 0.04;
 const controlsWidthRatio = 0.18;
 const timelineHeightRatio = 0.2;
 
-export function computeApplicationSurfaceLayout({
-  viewportWidth,
-  viewportHeight,
-}) {
+export default function computeLayout({ viewportWidth, viewportHeight }) {
   const usableViewportWidth = viewportWidth * (1 - surfaceMarginRatio * 2);
   const usableViewportHeight = viewportHeight * (1 - surfaceMarginRatio * 2);
 
