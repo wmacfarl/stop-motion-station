@@ -41,37 +41,6 @@ class CameraService {
     });
 
     this.videoElement.srcObject = this.mediaStream;
-
-    await new Promise((resolve, reject) => {
-      const handleLoadedMetadata = () => {
-        this.videoElement.play().then(resolve).catch(reject);
-      };
-
-      this.videoElement.addEventListener(
-        "loadedmetadata",
-        handleLoadedMetadata,
-        {
-          once: true,
-        },
-      );
-    });
-
-    await new Promise((resolve) => {
-      const verifyVideoIsProducingFrames = () => {
-        if (
-          this.videoElement.videoWidth > 0 &&
-          this.videoElement.videoHeight > 0 &&
-          this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-        ) {
-          resolve();
-          return;
-        }
-
-        window.requestAnimationFrame(verifyVideoIsProducingFrames);
-      };
-
-      verifyVideoIsProducingFrames();
-    });
   }
 
   getVideoElement() {
@@ -83,8 +52,14 @@ class CameraService {
       return;
     }
 
+    this.videoElement.muted = true;
+    this.videoElement.autoplay = true;
+    this.videoElement.playsInline = true;
+
     if (this.videoElement.paused) {
-      this.videoElement.play().catch(() => {});
+      this.videoElement.play().catch((previewPlaybackError) => {
+        console.error("Failed to start preview playback:", previewPlaybackError);
+      });
     }
   }
 
