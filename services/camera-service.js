@@ -33,8 +33,8 @@ class CameraService {
   async startPreviewInternal() {
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+  //      width: { ideal: 1280 },
+  //      height: { ideal: 720 },
       },
       audio: false,
     });
@@ -88,5 +88,5 @@ class CameraService {
 }
 
 const cameraService = new CameraService();
-
+window.cameraService = cameraService;
 export default cameraService;
