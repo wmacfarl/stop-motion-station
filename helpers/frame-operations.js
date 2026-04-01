@@ -9,6 +9,9 @@ export function createInitialApplicationState() {
     },
     isPlaying: false,
     playbackFrameIndex: null,
+    isTimelapseCapturing: false,
+    timelapseIntervalMilliseconds: 500,
+    timelapseTimerIdentifier: null,
     appSurfaceLayout: {
       width: 0,
       height: 0,
@@ -21,17 +24,18 @@ export function createInitialApplicationState() {
 }
 
 function createFrameRecord({
+  id,
   timelineImageSource,
   previewImageSource,
-  originalBlob,
+  originalStorageKey,
   width,
   height,
 }) {
   return {
-    id: `frame-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id,
     timelineImageSource,
     previewImageSource,
-    originalBlob,
+    originalStorageKey,
     width,
     height,
   };
@@ -65,26 +69,13 @@ export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
     return {
       frames,
       selectedTimelineItem,
+      deletedFrameRecord: null,
     };
   }
 
   const frameIndexToDelete = selectedTimelineItem.index;
   const updatedFrames = [...frames];
-  updatedFrames.splice(frameIndexToDelete, 1);
-
-  const deletedFrameRecord = frames[frameIndexToDelete];
-
-  if (deletedFrameRecord?.timelineImageSource?.startsWith("blob:")) {
-    URL.revokeObjectURL(deletedFrameRecord.timelineImageSource);
-  }
-
-  if (
-    deletedFrameRecord?.previewImageSource
-    && deletedFrameRecord.previewImageSource !== deletedFrameRecord.timelineImageSource
-    && deletedFrameRecord.previewImageSource.startsWith("blob:")
-  ) {
-    URL.revokeObjectURL(deletedFrameRecord.previewImageSource);
-  }
+  const [deletedFrameRecord] = updatedFrames.splice(frameIndexToDelete, 1);
 
   return {
     frames: updatedFrames,
@@ -92,6 +83,7 @@ export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
       type: "gap",
       index: frameIndexToDelete,
     },
+    deletedFrameRecord,
   };
 }
 
