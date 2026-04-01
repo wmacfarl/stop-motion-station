@@ -1,5 +1,5 @@
 import cameraService from "../services/camera-service.js";
-import mountNodeIntoContainer from "../dom/mount-node-into-container.js";
+import mountNodeIntoContainer from "../helpers/mount-node-into-container.js";
 
 function attachLiveVideoElement(previewPanelElement) {
   const liveVideoContainerElement = previewPanelElement.querySelector(".live-video-container");

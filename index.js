@@ -1,9 +1,9 @@
-import applicationStore from "./stores/application-store.js";
+import store from "./stores/store.js";
 /* index.js */
 import MainView from "./views/main-view.js";
 
 const application = Choo();
-application.use(applicationStore);
+application.use(store);
 application.route("*", MainView);
 
 window.requestAnimationFrame(() => {
