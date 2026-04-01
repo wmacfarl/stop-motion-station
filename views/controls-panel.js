@@ -1,4 +1,4 @@
-export default function renderControlsPanel(state, emit) {
+export default function controlsPanel(state, emit) {
   const { controlsWidth, previewHeight } = state.appSurfaceLayout;
 
   const canCaptureFrames = state.cameraStatus === "ready" && !state.isPlaying;
@@ -6,10 +6,7 @@ export default function renderControlsPanel(state, emit) {
   const canPlaySequence = state.frames.length > 0 && !state.isPlaying;
 
   return html`
-    <aside
-      class="controls-panel"
-      style=${`width: ${controlsWidth}px; height: ${previewHeight}px;`}
-    >
+    <aside class="controls-panel" style=${`width: ${controlsWidth}px; height: ${previewHeight}px;`}>
       <button
         class="controls-button"
         disabled=${!canCaptureFrames}

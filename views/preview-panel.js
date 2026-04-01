@@ -6,15 +6,12 @@ function attachLiveVideoElement(previewPanelElement) {
   mountNodeIntoContainer(liveVideoContainerElement, cameraService.getVideoElement());
 }
 
-export default function renderPreviewPanel(state) {
+export default function previewPanel(state) {
   const { previewWidth, previewHeight } = state.appSurfaceLayout;
 
   if (state.cameraStatus === "requesting" || state.cameraStatus === "booting") {
     return html`
-      <section
-        class="preview-panel"
-        style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
-      >
+      <section class="preview-panel" style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}>
         <div class="preview-status-message">Requesting camera…</div>
       </section>
     `;
@@ -22,10 +19,7 @@ export default function renderPreviewPanel(state) {
 
   if (state.cameraStatus === "error") {
     return html`
-      <section
-        class="preview-panel"
-        style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
-      >
+      <section class="preview-panel" style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}>
         <div class="preview-status-message">
           Camera error: ${state.cameraErrorMessage || "Unknown error"}
         </div>
@@ -37,10 +31,7 @@ export default function renderPreviewPanel(state) {
     const playbackFrameRecord = state.frames[state.playbackFrameIndex];
 
     return html`
-      <section
-        class="preview-panel"
-        style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
-      >
+      <section class="preview-panel" style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}>
         <img
           class="playback-preview-image"
           src=${playbackFrameRecord.imageSource}

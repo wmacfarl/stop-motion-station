@@ -1,3 +1,25 @@
+export function createInitialApplicationState() {
+  return {
+    cameraStatus: "booting",
+    cameraErrorMessage: null,
+    frames: [],
+    selectedTimelineItem: {
+      type: "gap",
+      index: 0,
+    },
+    isPlaying: false,
+    playbackFrameIndex: null,
+    appSurfaceLayout: {
+      width: 0,
+      height: 0,
+      previewWidth: 0,
+      previewHeight: 0,
+      controlsWidth: 0,
+      timelineHeight: 0,
+    },
+  };
+}
+
 function createFrameRecord(imageSource) {
   return {
     id: `frame-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -28,10 +50,7 @@ export function insertCapturedFrameAtCurrentSelection({
   };
 }
 
-export function deleteSelectedFrame({
-  frames,
-  selectedTimelineItem,
-}) {
+export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
   if (selectedTimelineItem.type !== "frame") {
     return {
       frames,
