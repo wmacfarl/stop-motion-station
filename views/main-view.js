@@ -21,6 +21,6 @@ export default function mainView(state, emit) {
 
         ${timelinePanel(state, emit)}
       </section>
-    </main>
+    </div>
   `;
 }
