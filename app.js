@@ -36,7 +36,9 @@ export default function applicationStore(state, emitter) {
 
     try {
       await cameraService.startPreview();
+      state.cameraService = cameraService;
       state.cameraStatus = "ready";
+      emitter.emit("render");
     } catch (cameraStartupError) {
       state.cameraStatus = "error";
       state.cameraErrorMessage = cameraStartupError.message;
