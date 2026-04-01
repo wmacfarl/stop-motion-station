@@ -1,0 +1,10 @@
+{
+  "name": "placeholder-name",
+  "version": "0.1.0",
+  "description": "placeholder description",
+  "type": "module",
+  "scripts": {
+    "apply-config": "node apply-config.js",
+    "deploy": "node deploy.js"
+  }
+}
