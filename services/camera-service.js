@@ -1,5 +1,6 @@
 class CameraService {
   constructor() {
+    console.log("Initializing camera service...");
     this.videoElement = document.createElement("video");
     this.videoElement.autoplay = true;
     this.videoElement.playsInline = true;
@@ -32,21 +33,34 @@ class CameraService {
 
   async startPreviewInternal() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("Camera API unavailable. Use HTTPS or localhost in a supported browser.");
+      throw new Error(
+        "Camera API unavailable. Use HTTPS or localhost in a supported browser.",
+      );
     }
-
-    // ask for a 1.777777778 aspect ratio video feed, but allow the browser to provide the closest available match
-   
     const requestedAspectRatio = 16 / 9;
-    const mediaStreamConstraints = {
+
+    this.mediaStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        aspectRatio: requestedAspectRatio,
+        aspectRatio: { ideal: requestedAspectRatio },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
       },
       audio: false,
-    };
-    this.mediaStream = await navigator.mediaDevices.getUserMedia(mediaStreamConstraints);
+    });
 
-    
+    const videoTrack = this.mediaStream.getVideoTracks()[0];
+    console.log("initial settings:", videoTrack.getSettings());
+
+    try {
+      await videoTrack.applyConstraints({
+        aspectRatio: { ideal: requestedAspectRatio },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      });
+      console.log("after applyConstraints:", videoTrack.getSettings());
+    } catch (error) {
+      console.warn("Could not raise resolution:", error);
+    }
     this.videoElement.srcObject = this.mediaStream;
   }
 
@@ -65,7 +79,10 @@ class CameraService {
 
     if (this.videoElement.paused) {
       this.videoElement.play().catch((previewPlaybackError) => {
-        console.error("Failed to start preview playback:", previewPlaybackError);
+        console.error(
+          "Failed to start preview playback:",
+          previewPlaybackError,
+        );
       });
     }
   }
