@@ -41,18 +41,52 @@ class CameraService {
 
     this.videoElement.srcObject = this.mediaStream;
 
-    try {
-      await this.videoElement.play();
-    } catch (cameraPreviewPlaybackError) {
-      // Some environments only begin playback after the video element is mounted in the document.
-      // We intentionally continue and retry from the preview rendering path.
-    }
+    await new Promise((resolve, reject) => {
+      const handleLoadedMetadata = () => {
+        this.videoElement.play().then(resolve).catch(reject);
+      };
+
+      this.videoElement.addEventListener(
+        "loadedmetadata",
+        handleLoadedMetadata,
+        {
+          once: true,
+        },
+      );
+    });
+
+    await new Promise((resolve) => {
+      const verifyVideoIsProducingFrames = () => {
+        if (
+          this.videoElement.videoWidth > 0 &&
+          this.videoElement.videoHeight > 0 &&
+          this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        ) {
+          resolve();
+          return;
+        }
+
+        window.requestAnimationFrame(verifyVideoIsProducingFrames);
+      };
+
+      verifyVideoIsProducingFrames();
+    });
   }
 
   getVideoElement() {
     return this.videoElement;
   }
 
+  ensurePreviewIsPlaying() {
+    const hasMediaStream = Boolean(this.videoElement.srcObject);
+    const isVideoPaused = this.videoElement.paused;
+
+    if (!hasMediaStream || !isVideoPaused) {
+      return;
+    }
+
+    this.videoElement.play().catch(() => {});
+  }
   ensurePreviewIsPlaying() {
     if (!this.videoElement.srcObject) {
       return;
@@ -66,10 +100,6 @@ class CameraService {
   captureCurrentFrameImageSource() {
     const frameWidth = this.videoElement.videoWidth;
     const frameHeight = this.videoElement.videoHeight;
-
-    if (!frameWidth || !frameHeight) {
-      throw new Error("Camera preview is not ready to capture a frame yet.");
-    }
 
     this.captureCanvasElement.width = frameWidth;
     this.captureCanvasElement.height = frameHeight;
