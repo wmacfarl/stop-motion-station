@@ -38,12 +38,10 @@ class CameraService {
       );
     }
     const requestedAspectRatio = 16 / 9;
-
+    console.log("Requesting camera with aspect ratio:", requestedAspectRatio, "no other constraints");
     this.mediaStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        aspectRatio: { ideal: requestedAspectRatio },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        aspectRatio: { ideal: requestedAspectRatio }
       },
       audio: false,
     });
