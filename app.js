@@ -31,14 +31,22 @@ export default function applicationStore(state, emitter) {
       emitter.emit("application:resize");
     });
 
+    emitter.emit("render");
+  });
+
+  emitter.on("camera:request-access", async () => {
+    if (state.cameraStatus === "requesting" || state.cameraStatus === "ready") {
+      return;
+    }
+
     state.cameraStatus = "requesting";
+    state.cameraErrorMessage = null;
     emitter.emit("render");
 
     try {
       await cameraService.startPreview();
       state.cameraService = cameraService;
       state.cameraStatus = "ready";
-      emitter.emit("render");
     } catch (cameraStartupError) {
       state.cameraStatus = "error";
       state.cameraErrorMessage = cameraStartupError.message;
