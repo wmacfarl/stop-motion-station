@@ -18,6 +18,7 @@ export default function applicationStore(state, emitter) {
   Object.assign(state, createInitialApplicationState());
 
   let timelapseCaptureInProgress = false;
+  let animationFrameIdentifierForTimelineScroll = null;
 
   function updateApplicationLayoutFromViewport() {
     state.appSurfaceLayout = computeLayout({
@@ -74,7 +75,8 @@ export default function applicationStore(state, emitter) {
 
     state.frames = insertionResult.frames;
     state.selectedTimelineItem = insertionResult.selectedTimelineItem;
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
 
     if (insertionResult.replacedFrameRecord) {
       try {
@@ -136,12 +138,50 @@ export default function applicationStore(state, emitter) {
     timelapseCaptureInProgress = false;
   }
 
-  function updateVisibleTimelineWindowFromSelection() {
-    state.visibleTimelineStartPosition = ensureTimelineSelectionIsVisible({
+  function updateVisibleTimelineScrollTargetFromSelection() {
+    state.timelineScrollTargetOffsetInItemUnits = ensureTimelineSelectionIsVisible({
       selectedTimelineItem: state.selectedTimelineItem,
-      visibleTimelineStartPosition: state.visibleTimelineStartPosition,
+      currentTimelineScrollOffsetInItemUnits: state.timelineScrollTargetOffsetInItemUnits,
       visibleTimelineItemCount: state.visibleTimelineItemCount,
+      frameCount: state.frames.length,
     });
+  }
+
+  function updateTimelineScrollTargetAndClampCurrentOffset() {
+    updateVisibleTimelineScrollTargetFromSelection();
+
+    const maximumTimelineScrollOffset = Math.max(
+      0,
+      (state.frames.length * 2) - state.visibleTimelineItemCount,
+    );
+    state.timelineScrollOffsetInItemUnits = Math.min(
+      maximumTimelineScrollOffset,
+      Math.max(0, state.timelineScrollOffsetInItemUnits),
+    );
+  }
+
+  function animateTimelineScrollOffsetTowardsTargetIfNeeded() {
+    if (animationFrameIdentifierForTimelineScroll !== null) {
+      return;
+    }
+
+    const animateScrollStep = () => {
+      animationFrameIdentifierForTimelineScroll = null;
+      const timelineScrollDeltaInItemUnits =
+        state.timelineScrollTargetOffsetInItemUnits - state.timelineScrollOffsetInItemUnits;
+
+      if (Math.abs(timelineScrollDeltaInItemUnits) < 0.001) {
+        state.timelineScrollOffsetInItemUnits = state.timelineScrollTargetOffsetInItemUnits;
+        emitter.emit("render");
+        return;
+      }
+
+      state.timelineScrollOffsetInItemUnits += timelineScrollDeltaInItemUnits * 0.2;
+      emitter.emit("render");
+      animationFrameIdentifierForTimelineScroll = window.requestAnimationFrame(animateScrollStep);
+    };
+
+    animationFrameIdentifierForTimelineScroll = window.requestAnimationFrame(animateScrollStep);
   }
 
   updateApplicationLayoutFromViewport();
@@ -226,7 +266,8 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = { type: "gap", index: gapIndex };
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 
@@ -236,7 +277,8 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = { type: "frame", index: frameIndex };
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 
@@ -257,7 +299,8 @@ export default function applicationStore(state, emitter) {
 
     state.frames = movementResult.frames;
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 
@@ -278,7 +321,8 @@ export default function applicationStore(state, emitter) {
 
     state.frames = movementResult.frames;
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 
@@ -298,7 +342,8 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 
@@ -318,7 +363,8 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 
@@ -390,7 +436,8 @@ export default function applicationStore(state, emitter) {
 
     state.frames = deletionResult.frames;
     state.selectedTimelineItem = deletionResult.selectedTimelineItem;
-    updateVisibleTimelineWindowFromSelection();
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
 
     try {
       await cleanupDeletedFrameAssets(deletionResult.deletedFrameRecord);
