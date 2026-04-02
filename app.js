@@ -10,6 +10,7 @@ import {
   canDeleteSelectedFrame,
   canPlayFrames,
   moveSelectedFrameByOffset,
+  moveTimelineSelectionByOffset,
 } from "./helpers/frame-operations.js";
 
 export default function applicationStore(state, emitter) {
@@ -139,13 +140,13 @@ export default function applicationStore(state, emitter) {
 
       if (keyPressed === "ArrowLeft") {
         keyboardEvent.preventDefault();
-        emitter.emit("timeline:move-selected-frame-left");
+        emitter.emit("timeline:move-selection-left");
         return;
       }
 
       if (keyPressed === "ArrowRight") {
         keyboardEvent.preventDefault();
-        emitter.emit("timeline:move-selected-frame-right");
+        emitter.emit("timeline:move-selection-right");
       }
     };
 
@@ -245,6 +246,44 @@ export default function applicationStore(state, emitter) {
     }
 
     state.frames = movementResult.frames;
+    state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    emitter.emit("render");
+  });
+
+  emitter.on("timeline:move-selection-left", () => {
+    if (state.isPlaying || state.isTimelapseCapturing) {
+      return;
+    }
+
+    const movementResult = moveTimelineSelectionByOffset({
+      frames: state.frames,
+      selectedTimelineItem: state.selectedTimelineItem,
+      movementOffset: -1,
+    });
+
+    if (!movementResult.didMoveSelection) {
+      return;
+    }
+
+    state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    emitter.emit("render");
+  });
+
+  emitter.on("timeline:move-selection-right", () => {
+    if (state.isPlaying || state.isTimelapseCapturing) {
+      return;
+    }
+
+    const movementResult = moveTimelineSelectionByOffset({
+      frames: state.frames,
+      selectedTimelineItem: state.selectedTimelineItem,
+      movementOffset: 1,
+    });
+
+    if (!movementResult.didMoveSelection) {
+      return;
+    }
+
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
     emitter.emit("render");
   });
