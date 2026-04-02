@@ -7,7 +7,8 @@ export function createInitialApplicationState() {
       type: "gap",
       index: 0,
     },
-    visibleTimelineStartPosition: 0,
+    timelineScrollOffsetInItemUnits: 0,
+    timelineScrollTargetOffsetInItemUnits: 0,
     visibleTimelineItemCount: 9,
     isPlaying: false,
     playbackFrameIndex: null,
@@ -33,22 +34,20 @@ function getSelectionPositionOnTimeline(selectedTimelineItem) {
 
 export function ensureTimelineSelectionIsVisible({
   selectedTimelineItem,
-  visibleTimelineStartPosition,
+  currentTimelineScrollOffsetInItemUnits,
   visibleTimelineItemCount,
+  frameCount,
 }) {
   const selectedTimelinePosition = getSelectionPositionOnTimeline(selectedTimelineItem);
-  const visibleTimelineEndPosition =
-    visibleTimelineStartPosition + visibleTimelineItemCount - 1;
+  const centeredTimelineScrollOffset = selectedTimelinePosition - (visibleTimelineItemCount / 2);
+  const maximumTimelineScrollOffset = Math.max(0, (frameCount * 2) - visibleTimelineItemCount);
 
-  if (selectedTimelinePosition < visibleTimelineStartPosition) {
-    return selectedTimelinePosition;
-  }
-
-  if (selectedTimelinePosition > visibleTimelineEndPosition) {
-    return selectedTimelinePosition - visibleTimelineItemCount + 1;
-  }
-
-  return visibleTimelineStartPosition;
+  return Math.min(
+    maximumTimelineScrollOffset,
+    Math.max(0, Number.isFinite(centeredTimelineScrollOffset)
+      ? centeredTimelineScrollOffset
+      : currentTimelineScrollOffsetInItemUnits),
+  );
 }
 
 function createFrameRecord({

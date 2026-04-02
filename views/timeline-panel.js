@@ -7,6 +7,7 @@ function renderGapButton(state, emit, gapIndex) {
       class=${`timeline-gap ${gapIsSelected ? "is-selected" : ""}`}
       onclick=${() => emit("timeline:select-gap", gapIndex)}
       aria-label=${`Select insertion point ${gapIndex}`}
+      data-timeline-item-type="gap"
     ></button>
   `;
 }
@@ -31,6 +32,7 @@ function renderFrameButton(state, emit, frame, frameIndex) {
       class=${frameButtonClassNames.join(" ")}
       onclick=${() => emit("timeline:select-frame", frameIndex)}
       aria-label=${`Select frame ${frameIndex + 1}`}
+      data-timeline-item-type="frame"
     >
       <img
         src=${frame.timelineImageSource}
@@ -43,28 +45,38 @@ function renderFrameButton(state, emit, frame, frameIndex) {
 
 export default function timelinePanel(state, emit) {
   const { width, timelineHeight } = state.appSurfaceLayout;
-  const allTimelineItems = [];
+  const timelineItemStrideInPixels = 108;
+  const timelineOffsetInPixels = state.timelineScrollOffsetInItemUnits * timelineItemStrideInPixels;
+  const timelineItems = [];
 
   for (let gapIndex = 0; gapIndex <= state.frames.length; gapIndex += 1) {
-    allTimelineItems.push(renderGapButton(state, emit, gapIndex));
+    const gapTimelinePosition = gapIndex * 2;
+    timelineItems.push(html`
+      <div
+        class="timeline-item-slot"
+        style=${`left: ${(gapTimelinePosition * timelineItemStrideInPixels) - timelineOffsetInPixels}px;`}
+      >
+        ${renderGapButton(state, emit, gapIndex)}
+      </div>
+    `);
 
     if (gapIndex < state.frames.length) {
-      allTimelineItems.push(renderFrameButton(state, emit, state.frames[gapIndex], gapIndex));
+      const frameTimelinePosition = (gapIndex * 2) + 1;
+      timelineItems.push(html`
+        <div
+          class="timeline-item-slot"
+          style=${`left: ${(frameTimelinePosition * timelineItemStrideInPixels) - timelineOffsetInPixels}px;`}
+        >
+          ${renderFrameButton(state, emit, state.frames[gapIndex], gapIndex)}
+        </div>
+      `);
     }
   }
-
-  const firstVisibleTimelinePosition = state.visibleTimelineStartPosition;
-  const onePastLastVisibleTimelinePosition =
-    state.visibleTimelineStartPosition + state.visibleTimelineItemCount;
-  const visibleTimelineItems = allTimelineItems.slice(
-    firstVisibleTimelinePosition,
-    onePastLastVisibleTimelinePosition,
-  );
 
   return html`
     <section class="timeline-panel" style=${`width: ${width}px; height: ${timelineHeight}px;`}>
       <div class="timeline-scroll-strip">
-        ${visibleTimelineItems}
+        ${timelineItems}
       </div>
     </section>
   `;
