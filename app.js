@@ -165,6 +165,12 @@ export default function applicationStore(state, emitter) {
       if (keyPressed === "ArrowRight") {
         keyboardEvent.preventDefault();
         emitter.emit("timeline:move-selection-right");
+        return;
+      }
+
+      if (keyPressed === "ArrowDown") {
+        keyboardEvent.preventDefault();
+        emitter.emit("frames:delete-selected");
       }
     };
 
