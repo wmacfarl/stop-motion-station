@@ -7,6 +7,8 @@ export function createInitialApplicationState() {
       type: "gap",
       index: 0,
     },
+    visibleTimelineStartPosition: 0,
+    visibleTimelineItemCount: 9,
     isPlaying: false,
     playbackFrameIndex: null,
     isTimelapseCapturing: false,
@@ -21,6 +23,32 @@ export function createInitialApplicationState() {
       timelineHeight: 0,
     },
   };
+}
+
+function getSelectionPositionOnTimeline(selectedTimelineItem) {
+  return selectedTimelineItem.type === "gap"
+    ? selectedTimelineItem.index * 2
+    : (selectedTimelineItem.index * 2) + 1;
+}
+
+export function ensureTimelineSelectionIsVisible({
+  selectedTimelineItem,
+  visibleTimelineStartPosition,
+  visibleTimelineItemCount,
+}) {
+  const selectedTimelinePosition = getSelectionPositionOnTimeline(selectedTimelineItem);
+  const visibleTimelineEndPosition =
+    visibleTimelineStartPosition + visibleTimelineItemCount - 1;
+
+  if (selectedTimelinePosition < visibleTimelineStartPosition) {
+    return selectedTimelinePosition;
+  }
+
+  if (selectedTimelinePosition > visibleTimelineEndPosition) {
+    return selectedTimelinePosition - visibleTimelineItemCount + 1;
+  }
+
+  return visibleTimelineStartPosition;
 }
 
 function createFrameRecord({
@@ -132,12 +160,6 @@ export function moveSelectedFrameByOffset({ frames, selectedTimelineItem, moveme
     },
     didMoveFrame: true,
   };
-}
-
-function getSelectionPositionOnTimeline(selectedTimelineItem) {
-  return selectedTimelineItem.type === "gap"
-    ? selectedTimelineItem.index * 2
-    : (selectedTimelineItem.index * 2) + 1;
 }
 
 function createTimelineSelectionFromPosition(selectionPositionOnTimeline) {

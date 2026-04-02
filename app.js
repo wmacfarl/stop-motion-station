@@ -11,6 +11,7 @@ import {
   canPlayFrames,
   moveSelectedFrameByOffset,
   moveTimelineSelectionByOffset,
+  ensureTimelineSelectionIsVisible,
 } from "./helpers/frame-operations.js";
 
 export default function applicationStore(state, emitter) {
@@ -73,6 +74,7 @@ export default function applicationStore(state, emitter) {
 
     state.frames = insertionResult.frames;
     state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+    updateVisibleTimelineWindowFromSelection();
 
     if (insertionResult.replacedFrameRecord) {
       try {
@@ -132,6 +134,14 @@ export default function applicationStore(state, emitter) {
     }
 
     timelapseCaptureInProgress = false;
+  }
+
+  function updateVisibleTimelineWindowFromSelection() {
+    state.visibleTimelineStartPosition = ensureTimelineSelectionIsVisible({
+      selectedTimelineItem: state.selectedTimelineItem,
+      visibleTimelineStartPosition: state.visibleTimelineStartPosition,
+      visibleTimelineItemCount: state.visibleTimelineItemCount,
+    });
   }
 
   updateApplicationLayoutFromViewport();
@@ -206,6 +216,7 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = { type: "gap", index: gapIndex };
+    updateVisibleTimelineWindowFromSelection();
     emitter.emit("render");
   });
 
@@ -215,6 +226,7 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = { type: "frame", index: frameIndex };
+    updateVisibleTimelineWindowFromSelection();
     emitter.emit("render");
   });
 
@@ -235,6 +247,7 @@ export default function applicationStore(state, emitter) {
 
     state.frames = movementResult.frames;
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    updateVisibleTimelineWindowFromSelection();
     emitter.emit("render");
   });
 
@@ -255,6 +268,7 @@ export default function applicationStore(state, emitter) {
 
     state.frames = movementResult.frames;
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    updateVisibleTimelineWindowFromSelection();
     emitter.emit("render");
   });
 
@@ -274,6 +288,7 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    updateVisibleTimelineWindowFromSelection();
     emitter.emit("render");
   });
 
@@ -293,6 +308,7 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    updateVisibleTimelineWindowFromSelection();
     emitter.emit("render");
   });
 
@@ -364,6 +380,7 @@ export default function applicationStore(state, emitter) {
 
     state.frames = deletionResult.frames;
     state.selectedTimelineItem = deletionResult.selectedTimelineItem;
+    updateVisibleTimelineWindowFromSelection();
 
     try {
       await cleanupDeletedFrameAssets(deletionResult.deletedFrameRecord);
