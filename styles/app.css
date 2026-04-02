@@ -131,14 +131,21 @@ body {
 }
 
 .timeline-gap {
+  appearance: none;
   width: 18px;
-  height: 70%;
+  height: 92%;
+  border: 1px solid #4a4a4a;
+  border-radius: 3px;
+  background: #2b2b2b;
+  padding: 0;
 }
 
 .timeline-frame {
+  appearance: none;
   width: 100px;
   height: 70%;
   padding: 0;
+  border: 1px solid #303030;
   overflow: hidden;
   background: #000;
 }
