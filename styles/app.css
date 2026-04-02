@@ -79,6 +79,8 @@ body {
 .previous-frame-onion-skin-canvas {
   pointer-events: none;
   opacity: 0.2;
+}
+
 .live-video-container video {
   transform: scale(-1, -1);
   transform-origin: center center;
