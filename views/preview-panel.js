@@ -85,15 +85,19 @@ function getPreviousFrameRecordForOnionSkin(state) {
     return null;
   }
 
+  let previousFrameIndex = null;
+
   if (state.selectedTimelineItem.type === "frame") {
-    return state.frames[Math.max(0, state.selectedTimelineItem.index - 1)] || null;
+    previousFrameIndex = state.selectedTimelineItem.index - 1;
+  } else if (state.selectedTimelineItem.type === "gap") {
+    previousFrameIndex = state.selectedTimelineItem.index - 1;
   }
 
-  if (state.selectedTimelineItem.type === "gap") {
-    return state.frames[state.selectedTimelineItem.index - 1] || null;
+  if (previousFrameIndex === null || previousFrameIndex < 0) {
+    return null;
   }
 
-  return state.frames[state.frames.length - 1] || null;
+  return state.frames[previousFrameIndex] || null;
 }
 
 export default function previewPanel(state) {
