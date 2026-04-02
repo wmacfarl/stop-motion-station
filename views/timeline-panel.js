@@ -14,10 +14,21 @@ function renderGapButton(state, emit, gapIndex) {
 function renderFrameButton(state, emit, frame, frameIndex) {
   const frameIsSelected = state.selectedTimelineItem.type === "frame"
     && state.selectedTimelineItem.index === frameIndex;
+  const frameIsPlaying = state.isPlaying && state.playbackFrameIndex === frameIndex;
+
+  const frameButtonClassNames = ["timeline-frame"];
+
+  if (frameIsSelected) {
+    frameButtonClassNames.push("is-selected");
+  }
+
+  if (frameIsPlaying) {
+    frameButtonClassNames.push("is-playing");
+  }
 
   return html`
     <button
-      class=${`timeline-frame ${frameIsSelected ? "is-selected" : ""}`}
+      class=${frameButtonClassNames.join(" ")}
       onclick=${() => emit("timeline:select-frame", frameIndex)}
       aria-label=${`Select frame ${frameIndex + 1}`}
     >
@@ -34,6 +45,23 @@ export default function timelinePanel(state, emit) {
   const { width, timelineHeight } = state.appSurfaceLayout;
   const timelineItems = [];
 
+  const keepSelectedTimelineItemInView = (timelineScrollStripElement) => {
+    if (!timelineScrollStripElement) {
+      return;
+    }
+
+    const selectedTimelineElement = timelineScrollStripElement.querySelector(".is-selected");
+    if (!selectedTimelineElement) {
+      return;
+    }
+
+    selectedTimelineElement.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: "smooth",
+    });
+  };
+
   for (let gapIndex = 0; gapIndex <= state.frames.length; gapIndex += 1) {
     timelineItems.push(renderGapButton(state, emit, gapIndex));
 
@@ -44,7 +72,13 @@ export default function timelinePanel(state, emit) {
 
   return html`
     <section class="timeline-panel" style=${`width: ${width}px; height: ${timelineHeight}px;`}>
-      <div class="timeline-scroll-strip">${timelineItems}</div>
+      <div
+        class="timeline-scroll-strip"
+        onload=${(timelineScrollStripElement) => keepSelectedTimelineItemInView(timelineScrollStripElement)}
+        onupdate=${(timelineScrollStripElement) => keepSelectedTimelineItemInView(timelineScrollStripElement)}
+      >
+        ${timelineItems}
+      </div>
     </section>
   `;
 }

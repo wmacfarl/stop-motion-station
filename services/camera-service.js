@@ -95,13 +95,12 @@ class CameraService {
       this.captureCanvasElement.height = frameHeight;
     }
 
-    this.captureRenderingContext.drawImage(
-      this.videoElement,
-      0,
-      0,
-      frameWidth,
-      frameHeight,
-    );
+    drawVideoFrameWithBothAxesFlipped({
+      renderingContext: this.captureRenderingContext,
+      sourceVideoElement: this.videoElement,
+      targetWidth: frameWidth,
+      targetHeight: frameHeight,
+    });
 
     const originalBlob = await canvasToBlob(
       this.captureCanvasElement,
@@ -159,6 +158,25 @@ class CameraService {
       height: frameHeight,
     };
   }
+}
+
+function drawVideoFrameWithBothAxesFlipped({
+  renderingContext,
+  sourceVideoElement,
+  targetWidth,
+  targetHeight,
+}) {
+  renderingContext.save();
+  renderingContext.translate(targetWidth, targetHeight);
+  renderingContext.scale(-1, -1);
+  renderingContext.drawImage(
+    sourceVideoElement,
+    0,
+    0,
+    targetWidth,
+    targetHeight,
+  );
+  renderingContext.restore();
 }
 
 function canvasToBlob(canvasElement, type, quality) {

@@ -79,6 +79,9 @@ body {
 .previous-frame-onion-skin-canvas {
   pointer-events: none;
   opacity: 0.2;
+.live-video-container video {
+  transform: scale(-1, -1);
+  transform-origin: center center;
 }
 
 .controls-panel {
@@ -149,4 +152,12 @@ body {
 
 .is-selected {
   outline: 3px solid #fff;
+}
+
+.timeline-frame.is-playing {
+  outline: 3px solid #39ff14;
+}
+
+.timeline-frame.is-selected.is-playing {
+  outline-color: #ffd700;
 }
