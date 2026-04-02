@@ -66,6 +66,11 @@ body {
   background: #000;
 }
 
+.live-video-container video {
+  transform: scale(-1, -1);
+  transform-origin: center center;
+}
+
 .controls-panel {
   display: flex;
   flex-direction: column;
