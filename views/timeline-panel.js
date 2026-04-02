@@ -50,33 +50,19 @@ export default function timelinePanel(state, emit) {
       return;
     }
 
-    const activeTimelineElement = timelineScrollStripElement.querySelector(".is-playing")
-      || timelineScrollStripElement.querySelector(".is-selected");
+    const selectedTimelineElement = timelineScrollStripElement.querySelector(".is-selected");
+    const playbackTimelineElement = timelineScrollStripElement.querySelector(".is-playing");
+    const timelineElementToKeepVisible = selectedTimelineElement || playbackTimelineElement;
 
-    if (!activeTimelineElement) {
+    if (!timelineElementToKeepVisible) {
       return;
     }
 
-    const scrollStripVisibleLeftEdge = timelineScrollStripElement.scrollLeft;
-    const scrollStripVisibleRightEdge = scrollStripVisibleLeftEdge + timelineScrollStripElement.clientWidth;
-
-    const activeElementLeftEdge = activeTimelineElement.offsetLeft;
-    const activeElementRightEdge = activeElementLeftEdge + activeTimelineElement.offsetWidth;
-
-    if (activeElementLeftEdge < scrollStripVisibleLeftEdge) {
-      timelineScrollStripElement.scrollTo({
-        left: activeElementLeftEdge,
-        behavior: "smooth",
-      });
-      return;
-    }
-
-    if (activeElementRightEdge > scrollStripVisibleRightEdge) {
-      timelineScrollStripElement.scrollTo({
-        left: activeElementRightEdge - timelineScrollStripElement.clientWidth,
-        behavior: "smooth",
-      });
-    }
+    timelineElementToKeepVisible.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "nearest",
+    });
   };
 
   for (let gapIndex = 0; gapIndex <= state.frames.length; gapIndex += 1) {
