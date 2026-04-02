@@ -109,7 +109,7 @@ export default function previewPanel(state) {
         class="preview-panel"
         style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
       >
-        <div class="preview-status-message">Click "Start Camera" to request camera permissions.</div>
+        <div class="preview-status-message">Preparing camera…</div>
       </section>
     `;
   }
