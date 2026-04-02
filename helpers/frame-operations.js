@@ -69,7 +69,11 @@ export function insertCapturedFrameAtCurrentSelection({
 }
 
 export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
-  if (selectedTimelineItem.type !== "frame") {
+  const selectionIsFrame = selectedTimelineItem.type === "frame";
+  const selectionIsGapWithFrameBehindIt = selectedTimelineItem.type === "gap"
+    && selectedTimelineItem.index > 0;
+
+  if (!selectionIsFrame && !selectionIsGapWithFrameBehindIt) {
     return {
       frames,
       selectedTimelineItem,
@@ -77,7 +81,9 @@ export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
     };
   }
 
-  const frameIndexToDelete = selectedTimelineItem.index;
+  const frameIndexToDelete = selectionIsFrame
+    ? selectedTimelineItem.index
+    : selectedTimelineItem.index - 1;
   const updatedFrames = [...frames];
   const [deletedFrameRecord] = updatedFrames.splice(frameIndexToDelete, 1);
 
@@ -92,7 +98,12 @@ export function deleteSelectedFrame({ frames, selectedTimelineItem }) {
 }
 
 export function canDeleteSelectedFrame(state) {
-  return state.selectedTimelineItem.type === "frame";
+  if (state.selectedTimelineItem.type === "frame") {
+    return true;
+  }
+
+  return state.selectedTimelineItem.type === "gap"
+    && state.selectedTimelineItem.index > 0;
 }
 
 export function canPlayFrames(state) {

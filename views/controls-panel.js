@@ -12,7 +12,14 @@ export default function controlsPanel(state, emit) {
 
   const canToggleTimelapseCapture = state.cameraStatus === "ready" && !state.isPlaying;
 
-  const canDeleteFrame = state.selectedTimelineItem.type === "frame"
+  const currentlySelectedFrameCanBeDeleted = state.selectedTimelineItem.type === "frame";
+  const currentlySelectedInsertionPointCanDeleteFrameBehindIt = state.selectedTimelineItem.type === "gap"
+    && state.selectedTimelineItem.index > 0;
+
+  const canDeleteFrame = (
+    currentlySelectedFrameCanBeDeleted
+    || currentlySelectedInsertionPointCanDeleteFrameBehindIt
+  )
     && !state.isPlaying
     && !state.isTimelapseCapturing;
 
