@@ -184,6 +184,7 @@ export default function applicationStore(state, emitter) {
     document.addEventListener("fullscreenchange", handleViewportChange);
 
     await frameStorageService.initialize();
+    emitter.emit("camera:request-access");
     emitter.emit("render");
   });
 

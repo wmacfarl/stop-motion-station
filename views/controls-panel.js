@@ -1,11 +1,6 @@
 export default function controlsPanel(state, emit) {
   const { controlsWidth, previewHeight } = state.appSurfaceLayout;
 
-  const canRequestCameraAccess = state.cameraStatus !== "requesting"
-    && state.cameraStatus !== "ready"
-    && !state.isPlaying
-    && !state.isTimelapseCapturing;
-
   const canCaptureFrames = state.cameraStatus === "ready"
     && !state.isPlaying
     && !state.isTimelapseCapturing;
@@ -29,14 +24,6 @@ export default function controlsPanel(state, emit) {
 
   return html`
     <aside class="controls-panel" style=${`width: ${controlsWidth}px; height: ${previewHeight}px;`}>
-      <button
-        class="controls-button"
-        disabled=${!canRequestCameraAccess}
-        onclick=${() => emit("camera:request-access")}
-      >
-        Start Camera
-      </button>
-
       <button
         class="controls-button"
         disabled=${!canCaptureFrames}
