@@ -129,3 +129,44 @@ export function moveSelectedFrameByOffset({ frames, selectedTimelineItem, moveme
     didMoveFrame: true,
   };
 }
+
+function getSelectionPositionOnTimeline(selectedTimelineItem) {
+  return selectedTimelineItem.type === "gap"
+    ? selectedTimelineItem.index * 2
+    : (selectedTimelineItem.index * 2) + 1;
+}
+
+function createTimelineSelectionFromPosition(selectionPositionOnTimeline) {
+  if (selectionPositionOnTimeline % 2 === 0) {
+    return {
+      type: "gap",
+      index: selectionPositionOnTimeline / 2,
+    };
+  }
+
+  return {
+    type: "frame",
+    index: (selectionPositionOnTimeline - 1) / 2,
+  };
+}
+
+export function moveTimelineSelectionByOffset({ frames, selectedTimelineItem, movementOffset }) {
+  const currentSelectionPositionOnTimeline = getSelectionPositionOnTimeline(selectedTimelineItem);
+  const maximumSelectionPositionOnTimeline = frames.length * 2;
+  const nextSelectionPositionOnTimeline = currentSelectionPositionOnTimeline + movementOffset;
+
+  if (
+    nextSelectionPositionOnTimeline < 0
+    || nextSelectionPositionOnTimeline > maximumSelectionPositionOnTimeline
+  ) {
+    return {
+      selectedTimelineItem,
+      didMoveSelection: false,
+    };
+  }
+
+  return {
+    selectedTimelineItem: createTimelineSelectionFromPosition(nextSelectionPositionOnTimeline),
+    didMoveSelection: true,
+  };
+}
