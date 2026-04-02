@@ -47,20 +47,24 @@ export function insertCapturedFrameAtCurrentSelection({
   capturedFrameRecordData,
 }) {
   const newFrameRecord = createFrameRecord(capturedFrameRecordData);
-
-  const insertIndex = selectedTimelineItem.type === "gap"
-    ? selectedTimelineItem.index
-    : selectedTimelineItem.index + 1;
-
   const updatedFrames = [...frames];
-  updatedFrames.splice(insertIndex, 0, newFrameRecord);
+  let capturedFrameIndex = selectedTimelineItem.index;
+  let replacedFrameRecord = null;
+
+  if (selectedTimelineItem.type === "gap") {
+    updatedFrames.splice(capturedFrameIndex, 0, newFrameRecord);
+  } else {
+    replacedFrameRecord = updatedFrames[capturedFrameIndex] || null;
+    updatedFrames[capturedFrameIndex] = newFrameRecord;
+  }
 
   return {
     frames: updatedFrames,
     selectedTimelineItem: {
-      type: "frame",
-      index: insertIndex,
+      type: "gap",
+      index: capturedFrameIndex + 1,
     },
+    replacedFrameRecord,
   };
 }
 

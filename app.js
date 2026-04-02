@@ -73,6 +73,14 @@ export default function applicationStore(state, emitter) {
 
     state.frames = insertionResult.frames;
     state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+
+    if (insertionResult.replacedFrameRecord) {
+      try {
+        await cleanupDeletedFrameAssets(insertionResult.replacedFrameRecord);
+      } catch (replaceCleanupError) {
+        console.error("Failed to clean up replaced frame assets:", replaceCleanupError);
+      }
+    }
   }
 
   async function measureAsyncOperationDuration({ operationName, frameIdentifier, operation }) {
