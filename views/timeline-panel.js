@@ -45,21 +45,38 @@ export default function timelinePanel(state, emit) {
   const { width, timelineHeight } = state.appSurfaceLayout;
   const timelineItems = [];
 
-  const keepSelectedTimelineItemInView = (timelineScrollStripElement) => {
+  const keepActiveTimelineItemInView = (timelineScrollStripElement) => {
     if (!timelineScrollStripElement) {
       return;
     }
 
-    const selectedTimelineElement = timelineScrollStripElement.querySelector(".is-selected");
-    if (!selectedTimelineElement) {
+    const activeTimelineElement = timelineScrollStripElement.querySelector(".is-playing")
+      || timelineScrollStripElement.querySelector(".is-selected");
+
+    if (!activeTimelineElement) {
       return;
     }
 
-    selectedTimelineElement.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-      behavior: "smooth",
-    });
+    const scrollStripVisibleLeftEdge = timelineScrollStripElement.scrollLeft;
+    const scrollStripVisibleRightEdge = scrollStripVisibleLeftEdge + timelineScrollStripElement.clientWidth;
+
+    const activeElementLeftEdge = activeTimelineElement.offsetLeft;
+    const activeElementRightEdge = activeElementLeftEdge + activeTimelineElement.offsetWidth;
+
+    if (activeElementLeftEdge < scrollStripVisibleLeftEdge) {
+      timelineScrollStripElement.scrollTo({
+        left: activeElementLeftEdge,
+        behavior: "smooth",
+      });
+      return;
+    }
+
+    if (activeElementRightEdge > scrollStripVisibleRightEdge) {
+      timelineScrollStripElement.scrollTo({
+        left: activeElementRightEdge - timelineScrollStripElement.clientWidth,
+        behavior: "smooth",
+      });
+    }
   };
 
   for (let gapIndex = 0; gapIndex <= state.frames.length; gapIndex += 1) {
@@ -74,8 +91,8 @@ export default function timelinePanel(state, emit) {
     <section class="timeline-panel" style=${`width: ${width}px; height: ${timelineHeight}px;`}>
       <div
         class="timeline-scroll-strip"
-        onload=${(timelineScrollStripElement) => keepSelectedTimelineItemInView(timelineScrollStripElement)}
-        onupdate=${(timelineScrollStripElement) => keepSelectedTimelineItemInView(timelineScrollStripElement)}
+        onload=${(timelineScrollStripElement) => keepActiveTimelineItemInView(timelineScrollStripElement)}
+        onupdate=${(timelineScrollStripElement) => keepActiveTimelineItemInView(timelineScrollStripElement)}
       >
         ${timelineItems}
       </div>
