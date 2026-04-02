@@ -43,44 +43,28 @@ function renderFrameButton(state, emit, frame, frameIndex) {
 
 export default function timelinePanel(state, emit) {
   const { width, timelineHeight } = state.appSurfaceLayout;
-  const timelineItems = [];
-
-  const keepActiveTimelineItemInView = (timelineScrollStripElement) => {
-    if (!timelineScrollStripElement) {
-      return;
-    }
-
-    const selectedTimelineElement = timelineScrollStripElement.querySelector(".is-selected");
-    const playbackTimelineElement = timelineScrollStripElement.querySelector(".is-playing");
-    const timelineElementToKeepVisible = selectedTimelineElement || playbackTimelineElement;
-
-    if (!timelineElementToKeepVisible) {
-      return;
-    }
-
-    timelineElementToKeepVisible.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "nearest",
-    });
-  };
+  const allTimelineItems = [];
 
   for (let gapIndex = 0; gapIndex <= state.frames.length; gapIndex += 1) {
-    timelineItems.push(renderGapButton(state, emit, gapIndex));
+    allTimelineItems.push(renderGapButton(state, emit, gapIndex));
 
     if (gapIndex < state.frames.length) {
-      timelineItems.push(renderFrameButton(state, emit, state.frames[gapIndex], gapIndex));
+      allTimelineItems.push(renderFrameButton(state, emit, state.frames[gapIndex], gapIndex));
     }
   }
 
+  const firstVisibleTimelinePosition = state.visibleTimelineStartPosition;
+  const onePastLastVisibleTimelinePosition =
+    state.visibleTimelineStartPosition + state.visibleTimelineItemCount;
+  const visibleTimelineItems = allTimelineItems.slice(
+    firstVisibleTimelinePosition,
+    onePastLastVisibleTimelinePosition,
+  );
+
   return html`
     <section class="timeline-panel" style=${`width: ${width}px; height: ${timelineHeight}px;`}>
-      <div
-        class="timeline-scroll-strip"
-        onload=${(timelineScrollStripElement) => keepActiveTimelineItemInView(timelineScrollStripElement)}
-        onupdate=${(timelineScrollStripElement) => keepActiveTimelineItemInView(timelineScrollStripElement)}
-      >
-        ${timelineItems}
+      <div class="timeline-scroll-strip">
+        ${visibleTimelineItems}
       </div>
     </section>
   `;
