@@ -135,3 +135,11 @@ body {
 .is-selected {
   outline: 3px solid #fff;
 }
+
+.timeline-frame.is-playing {
+  outline: 3px solid #39ff14;
+}
+
+.timeline-frame.is-selected.is-playing {
+  outline-color: #ffd700;
+}

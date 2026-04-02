@@ -94,3 +94,38 @@ export function canDeleteSelectedFrame(state) {
 export function canPlayFrames(state) {
   return state.frames.length > 0;
 }
+
+export function moveSelectedFrameByOffset({ frames, selectedTimelineItem, movementOffset }) {
+  if (selectedTimelineItem.type !== "frame") {
+    return {
+      frames,
+      selectedTimelineItem,
+      didMoveFrame: false,
+    };
+  }
+
+  const currentFrameIndex = selectedTimelineItem.index;
+  const nextFrameIndex = currentFrameIndex + movementOffset;
+
+  if (nextFrameIndex < 0 || nextFrameIndex >= frames.length) {
+    return {
+      frames,
+      selectedTimelineItem,
+      didMoveFrame: false,
+    };
+  }
+
+  const reorderedFrames = [...frames];
+  const frameRecordBeingMoved = reorderedFrames[currentFrameIndex];
+  reorderedFrames[currentFrameIndex] = reorderedFrames[nextFrameIndex];
+  reorderedFrames[nextFrameIndex] = frameRecordBeingMoved;
+
+  return {
+    frames: reorderedFrames,
+    selectedTimelineItem: {
+      type: "frame",
+      index: nextFrameIndex,
+    },
+    didMoveFrame: true,
+  };
+}
