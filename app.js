@@ -190,8 +190,8 @@ export default function applicationStore(state, emitter) {
       return;
     }
 
-    if (applicationRootElement.tabIndex !== -1) {
-      applicationRootElement.tabIndex = -1;
+    if (applicationRootElement.tabIndex !== 0) {
+      applicationRootElement.tabIndex = 0;
     }
 
     if (document.activeElement !== applicationRootElement) {
