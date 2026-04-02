@@ -100,7 +100,7 @@ function getPreviousFrameRecordForOnionSkin(state) {
   return state.frames[previousFrameIndex] || null;
 }
 
-export default function previewPanel(state) {
+export default function previewPanel(state, emit) {
   const { previewWidth, previewHeight } = state.appSurfaceLayout;
 
   if (state.cameraStatus === "idle") {
@@ -109,7 +109,14 @@ export default function previewPanel(state) {
         class="preview-panel"
         style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
       >
-        <div class="preview-status-message">Preparing camera…</div>
+        <div class="preview-status-message">
+          <button
+            class="start-camera-button"
+            onclick=${() => emit("camera:request-access")}
+          >
+            Start Camera
+          </button>
+        </div>
       </section>
     `;
   }
