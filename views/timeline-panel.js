@@ -45,8 +45,32 @@ function renderFrameButton(state, emit, frame, frameIndex) {
 
 export default function timelinePanel(state, emit) {
   const { width, timelineHeight } = state.appSurfaceLayout;
-  const timelineItemStrideInPixels = 108;
-  const timelineOffsetInPixels = state.timelineScrollOffsetInItemUnits * timelineItemStrideInPixels;
+  const interItemSpacingInPixels = 8;
+  const gapSlotWidthInPixels = 18;
+  const frameSlotWidthInPixels = 100;
+  const gapStrideInPixels = gapSlotWidthInPixels + interItemSpacingInPixels;
+  const frameStrideInPixels = frameSlotWidthInPixels + interItemSpacingInPixels;
+
+  function calculateOffsetFromTimelineUnits(timelineUnits) {
+    const fullPairCount = Math.floor(timelineUnits / 2);
+    const remainderUnitCount = timelineUnits - (fullPairCount * 2);
+    const fullPairStrideInPixels = gapStrideInPixels + frameStrideInPixels;
+
+    let offsetInPixels = fullPairCount * fullPairStrideInPixels;
+
+    if (remainderUnitCount <= 1) {
+      offsetInPixels += remainderUnitCount * gapStrideInPixels;
+    } else {
+      offsetInPixels += gapStrideInPixels;
+      offsetInPixels += (remainderUnitCount - 1) * frameStrideInPixels;
+    }
+
+    return offsetInPixels;
+  }
+
+  const timelineOffsetInPixels = calculateOffsetFromTimelineUnits(
+    state.timelineScrollOffsetInItemUnits,
+  );
   const timelineItems = [];
 
   for (let gapIndex = 0; gapIndex <= state.frames.length; gapIndex += 1) {
@@ -54,7 +78,7 @@ export default function timelinePanel(state, emit) {
     timelineItems.push(html`
       <div
         class="timeline-item-slot"
-        style=${`left: ${(gapTimelinePosition * timelineItemStrideInPixels) - timelineOffsetInPixels}px;`}
+        style=${`left: ${calculateOffsetFromTimelineUnits(gapTimelinePosition) - timelineOffsetInPixels}px;`}
       >
         ${renderGapButton(state, emit, gapIndex)}
       </div>
@@ -65,7 +89,7 @@ export default function timelinePanel(state, emit) {
       timelineItems.push(html`
         <div
           class="timeline-item-slot"
-          style=${`left: ${(frameTimelinePosition * timelineItemStrideInPixels) - timelineOffsetInPixels}px;`}
+          style=${`left: ${calculateOffsetFromTimelineUnits(frameTimelinePosition) - timelineOffsetInPixels}px;`}
         >
           ${renderFrameButton(state, emit, state.frames[gapIndex], gapIndex)}
         </div>
