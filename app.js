@@ -168,6 +168,9 @@ export default function applicationStore(state, emitter) {
         return;
       }
 
+      if (keyPressed === "ArrowUp") {
+        keyboardEvent.preventDefault();
+        emitter.emit("playback:start");
       if (keyPressed === "ArrowDown") {
         keyboardEvent.preventDefault();
         emitter.emit("frames:delete-selected");
