@@ -184,13 +184,31 @@ export default function applicationStore(state, emitter) {
     animationFrameIdentifierForTimelineScroll = window.requestAnimationFrame(animateScrollStep);
   }
 
+  function focusApplicationRootForKeyboardInput() {
+    const applicationRootElement = document.body;
+    if (!applicationRootElement) {
+      return;
+    }
+
+    if (applicationRootElement.tabIndex !== -1) {
+      applicationRootElement.tabIndex = -1;
+    }
+
+    if (document.activeElement !== applicationRootElement) {
+      applicationRootElement.focus();
+    }
+  }
+
   updateApplicationLayoutFromViewport();
 
   emitter.on("application:startup", async () => {
     const handleKeyboardShortcuts = (keyboardEvent) => {
       const keyPressed = keyboardEvent.key;
+      const isSpaceShortcutPressed = keyboardEvent.code === "Space"
+        || keyPressed === " "
+        || keyPressed === "Spacebar";
 
-      if (keyboardEvent.code === "Space" || keyPressed === " ") {
+      if (isSpaceShortcutPressed) {
         keyboardEvent.preventDefault();
         emitter.emit("frames:capture");
         return;
@@ -223,10 +241,14 @@ export default function applicationStore(state, emitter) {
       emitter.emit("application:resize");
     };
 
+    window.addEventListener("load", focusApplicationRootForKeyboardInput);
+    window.addEventListener("click", focusApplicationRootForKeyboardInput);
     window.addEventListener("resize", handleViewportChange);
     window.addEventListener("orientationchange", handleViewportChange);
-    window.addEventListener("keydown", handleKeyboardShortcuts);
+    window.addEventListener("keydown", handleKeyboardShortcuts, { passive: false });
     document.addEventListener("fullscreenchange", handleViewportChange);
+    window.setInterval(focusApplicationRootForKeyboardInput, 1000);
+    focusApplicationRootForKeyboardInput();
 
     await frameStorageService.initialize();
     emitter.emit("render");
@@ -247,6 +269,7 @@ export default function applicationStore(state, emitter) {
 
     try {
       await cameraService.startPreview();
+      window.setTimeout(focusApplicationRootForKeyboardInput, 0);
       state.cameraStatus = "ready";
     } catch (cameraStartupError) {
       state.cameraStatus = "error";
