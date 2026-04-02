@@ -66,6 +66,19 @@ body {
   background: #000;
 }
 
+.live-video-container {
+  position: relative;
+}
+
+.live-video-container video,
+.previous-frame-onion-skin-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.previous-frame-onion-skin-canvas {
+  pointer-events: none;
+  opacity: 0.2;
 .live-video-container video {
   transform: scale(-1, -1);
   transform-origin: center center;
