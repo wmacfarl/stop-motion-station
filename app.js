@@ -9,6 +9,7 @@ import {
   deleteSelectedFrame,
   canDeleteSelectedFrame,
   canPlayFrames,
+  moveSelectedFrameByOffset,
 } from "./helpers/frame-operations.js";
 
 export default function applicationStore(state, emitter) {
@@ -127,12 +128,34 @@ export default function applicationStore(state, emitter) {
   updateApplicationLayoutFromViewport();
 
   emitter.on("application:startup", async () => {
+    const handleKeyboardShortcuts = (keyboardEvent) => {
+      const keyPressed = keyboardEvent.key;
+
+      if (keyboardEvent.code === "Space" || keyPressed === " ") {
+        keyboardEvent.preventDefault();
+        emitter.emit("frames:capture");
+        return;
+      }
+
+      if (keyPressed === "ArrowLeft") {
+        keyboardEvent.preventDefault();
+        emitter.emit("timeline:move-selected-frame-left");
+        return;
+      }
+
+      if (keyPressed === "ArrowRight") {
+        keyboardEvent.preventDefault();
+        emitter.emit("timeline:move-selected-frame-right");
+      }
+    };
+
     const handleViewportChange = () => {
       emitter.emit("application:resize");
     };
 
     window.addEventListener("resize", handleViewportChange);
     window.addEventListener("orientationchange", handleViewportChange);
+    window.addEventListener("keydown", handleKeyboardShortcuts);
     document.addEventListener("fullscreenchange", handleViewportChange);
 
     await frameStorageService.initialize();
@@ -183,6 +206,46 @@ export default function applicationStore(state, emitter) {
     }
 
     state.selectedTimelineItem = { type: "frame", index: frameIndex };
+    emitter.emit("render");
+  });
+
+  emitter.on("timeline:move-selected-frame-left", () => {
+    if (state.isPlaying || state.isTimelapseCapturing) {
+      return;
+    }
+
+    const movementResult = moveSelectedFrameByOffset({
+      frames: state.frames,
+      selectedTimelineItem: state.selectedTimelineItem,
+      movementOffset: -1,
+    });
+
+    if (!movementResult.didMoveFrame) {
+      return;
+    }
+
+    state.frames = movementResult.frames;
+    state.selectedTimelineItem = movementResult.selectedTimelineItem;
+    emitter.emit("render");
+  });
+
+  emitter.on("timeline:move-selected-frame-right", () => {
+    if (state.isPlaying || state.isTimelapseCapturing) {
+      return;
+    }
+
+    const movementResult = moveSelectedFrameByOffset({
+      frames: state.frames,
+      selectedTimelineItem: state.selectedTimelineItem,
+      movementOffset: 1,
+    });
+
+    if (!movementResult.didMoveFrame) {
+      return;
+    }
+
+    state.frames = movementResult.frames;
+    state.selectedTimelineItem = movementResult.selectedTimelineItem;
     emitter.emit("render");
   });
 
