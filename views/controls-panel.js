@@ -4,6 +4,10 @@ export default function controlsPanel(state) {
   const automaticCaptureStatusMessage = automaticCaptureIsEnabled
     ? `Taking picture in ${state.autoCaptureCountdownSecondsRemaining ?? 3}...`
     : "Auto-capture is ready.";
+  const captureIsReady = state.captureReadinessStatus === "capture-ready";
+  const captureReadinessStatusMessage = captureIsReady
+    ? "Capture ready. Press Space to take a picture."
+    : "Busy saving the most recent frame. New captures are temporarily blocked.";
 
   return html`
     <aside class="controls-panel" style=${`width: ${controlsWidth}px; height: ${previewHeight}px;`}>
@@ -14,6 +18,15 @@ export default function controlsPanel(state) {
         </div>
         <div class="auto-capture-shortcut-hint">
           Press and release Up and Space together to start auto-capture. Press any other key to stop.
+        </div>
+      </section>
+      <section class="capture-readiness-indicator-panel">
+        <div class="capture-readiness-indicator-title">Capture status</div>
+        <div class=${`capture-readiness-state ${captureIsReady ? "is-ready" : "is-busy"}`}>
+          ${captureIsReady ? "Capture ready" : "Busy"}
+        </div>
+        <div class="capture-readiness-status-text">
+          ${captureReadinessStatusMessage}
         </div>
       </section>
     </aside>

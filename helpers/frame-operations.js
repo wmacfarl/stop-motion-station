@@ -23,6 +23,8 @@ export function createInitialApplicationState() {
     timelapseIntervalMilliseconds: 3000,
     timelapseTimerIdentifier: null,
     autoCaptureCountdownSecondsRemaining: null,
+    isCaptureOperationInProgress: false,
+    captureReadinessStatus: "capture-ready",
     appSurfaceLayout: {
       width: 0,
       height: 0,

@@ -464,7 +464,6 @@ export default function applicationStore(state, emitter) {
   Object.assign(state, createInitialApplicationState());
   attachGlobalKeyboardListener(state, emitter);
 
-  let timelapseCaptureInProgress = false;
   let animationFrameIdentifierForTimelineScroll = null;
   let automaticCaptureTimeoutIdentifier = null;
   let automaticCaptureSessionIdentifier = 0;
@@ -604,67 +603,82 @@ export default function applicationStore(state, emitter) {
   }
 
   async function captureAndInsertFrameRecord() {
+    if (state.isCaptureOperationInProgress) {
+      return false;
+    }
+
+    state.isCaptureOperationInProgress = true;
+    updateCaptureReadinessFromCurrentState();
+    emitter.emit("render");
+
     const frameIdentifier = createFrameId();
     const captureFlowStartedAtMilliseconds = performance.now();
 
     playSoundEffect(pictureShutterClickSound);
 
-    const capturedFrameData = await measureAsyncOperationDuration({
-      operationName: "camera-frame-capture",
-      frameIdentifier,
-      operation: () => cameraService.captureFrameRecordData(),
-    });
+    try {
+      const capturedFrameData = await measureAsyncOperationDuration({
+        operationName: "camera-frame-capture",
+        frameIdentifier,
+        operation: () => cameraService.captureFrameRecordData(),
+      });
 
-    const originalFrameSaveResult = await measureAsyncOperationDuration({
-      operationName: "original-frame-save",
-      frameIdentifier,
-      operation: () => frameStorageService.saveOriginalFrameBlob({
-        frameId: frameIdentifier,
-        blob: capturedFrameData.originalBlob,
-      }),
-    });
+      const originalFrameSaveResult = await measureAsyncOperationDuration({
+        operationName: "original-frame-save",
+        frameIdentifier,
+        operation: () => frameStorageService.saveOriginalFrameBlob({
+          frameId: frameIdentifier,
+          blob: capturedFrameData.originalBlob,
+        }),
+      });
 
-    const totalCaptureFlowDurationMilliseconds = performance.now()
-      - captureFlowStartedAtMilliseconds;
+      const totalCaptureFlowDurationMilliseconds = performance.now()
+        - captureFlowStartedAtMilliseconds;
 
-    console.info("Frame capture flow timing", {
-      frameIdentifier,
-      captureDurationMilliseconds: capturedFrameData.captureDurationMilliseconds,
-      originalFrameSaveDurationMilliseconds: originalFrameSaveResult.captureDurationMilliseconds,
-      totalCaptureFlowDurationMilliseconds,
-      originalBlobSizeInBytes: capturedFrameData.originalBlobSizeInBytes,
-      timelineBlobSizeInBytes: capturedFrameData.timelineBlobSizeInBytes,
-    });
+      console.info("Frame capture flow timing", {
+        frameIdentifier,
+        captureDurationMilliseconds: capturedFrameData.captureDurationMilliseconds,
+        originalFrameSaveDurationMilliseconds: originalFrameSaveResult.captureDurationMilliseconds,
+        totalCaptureFlowDurationMilliseconds,
+        originalBlobSizeInBytes: capturedFrameData.originalBlobSizeInBytes,
+        timelineBlobSizeInBytes: capturedFrameData.timelineBlobSizeInBytes,
+      });
 
-    const capturedFrameRecordData = {
-      id: frameIdentifier,
-      timelineImageSource: capturedFrameData.timelineImageSource,
-      previewImageSource: capturedFrameData.previewImageSource,
-      originalStorageKey: originalFrameSaveResult.operationResult,
-      width: capturedFrameData.width,
-      height: capturedFrameData.height,
-    };
+      const capturedFrameRecordData = {
+        id: frameIdentifier,
+        timelineImageSource: capturedFrameData.timelineImageSource,
+        previewImageSource: capturedFrameData.previewImageSource,
+        originalStorageKey: originalFrameSaveResult.operationResult,
+        width: capturedFrameData.width,
+        height: capturedFrameData.height,
+      };
 
-    const insertionResult = insertCapturedFrameAtCurrentSelection({
-      frames: state.frames,
-      selectedTimelineItem: state.selectedTimelineItem,
-      capturedFrameRecordData,
-    });
+      const insertionResult = insertCapturedFrameAtCurrentSelection({
+        frames: state.frames,
+        selectedTimelineItem: state.selectedTimelineItem,
+        capturedFrameRecordData,
+      });
 
-    state.frames = insertionResult.frames;
-    state.selectedTimelineItem = insertionResult.selectedTimelineItem;
-    updateTimelineScrollTargetAndClampCurrentOffset();
-    animateTimelineScrollOffsetTowardsTargetIfNeeded();
+      state.frames = insertionResult.frames;
+      state.selectedTimelineItem = insertionResult.selectedTimelineItem;
+      updateTimelineScrollTargetAndClampCurrentOffset();
+      animateTimelineScrollOffsetTowardsTargetIfNeeded();
 
-    if (insertionResult.replacedFrameRecord) {
-      try {
-        await cleanupDeletedFrameAssets(insertionResult.replacedFrameRecord);
-      } catch (replaceCleanupError) {
-        console.error("Failed to clean up replaced frame assets:", replaceCleanupError);
+      if (insertionResult.replacedFrameRecord) {
+        try {
+          await cleanupDeletedFrameAssets(insertionResult.replacedFrameRecord);
+        } catch (replaceCleanupError) {
+          console.error("Failed to clean up replaced frame assets:", replaceCleanupError);
+        }
       }
-    }
 
-    await persistCurrentProjectState();
+      await persistCurrentProjectState();
+      return true;
+    } finally {
+      state.isCaptureOperationInProgress = false;
+      updateCaptureReadinessFromCurrentState();
+      emitter.emit("render");
+    }
   }
 
   async function measureAsyncOperationDuration({ operationName, frameIdentifier, operation }) {
@@ -720,7 +734,6 @@ export default function applicationStore(state, emitter) {
       automaticCaptureTimeoutIdentifier = null;
     }
 
-    timelapseCaptureInProgress = false;
     state.autoCaptureCountdownSecondsRemaining = null;
   }
 
@@ -762,22 +775,32 @@ export default function applicationStore(state, emitter) {
         return;
       }
 
-      timelapseCaptureInProgress = true;
-
       try {
         await captureAndInsertFrameRecord();
       } catch (captureError) {
         console.error("Failed to capture timelapse frame:", captureError);
-      } finally {
-        timelapseCaptureInProgress = false;
-        emitter.emit("render");
       }
     }
   }
 
-  function updateVisibleTimelineScrollTargetFromSelection() {
+  function updateCaptureReadinessFromCurrentState() {
+    state.captureReadinessStatus = state.isCaptureOperationInProgress ? "busy" : "capture-ready";
+  }
+
+  function getTimelineItemToKeepVisible() {
+    if (state.isPlaying && state.playbackFrameIndex !== null) {
+      return {
+        type: "frame",
+        index: state.playbackFrameIndex,
+      };
+    }
+
+    return state.selectedTimelineItem;
+  }
+
+  function updateVisibleTimelineScrollTargetFromFocusedTimelineItem() {
     state.timelineScrollTargetOffsetInItemUnits = ensureTimelineSelectionIsVisible({
-      selectedTimelineItem: state.selectedTimelineItem,
+      selectedTimelineItem: getTimelineItemToKeepVisible(),
       currentTimelineScrollOffsetInItemUnits: state.timelineScrollTargetOffsetInItemUnits,
       visibleTimelineItemCount: state.visibleTimelineItemCount,
       frameCount: state.frames.length,
@@ -785,7 +808,7 @@ export default function applicationStore(state, emitter) {
   }
 
   function updateTimelineScrollTargetAndClampCurrentOffset() {
-    updateVisibleTimelineScrollTargetFromSelection();
+    updateVisibleTimelineScrollTargetFromFocusedTimelineItem();
 
     const maximumTimelineScrollOffset = Math.max(
       0,
@@ -1068,7 +1091,13 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("frames:capture", async () => {
-    if (state.appMode !== "project-editor" || state.cameraStatus !== "ready" || state.isPlaying || state.isTimelapseCapturing) {
+    if (
+      state.appMode !== "project-editor"
+      || state.cameraStatus !== "ready"
+      || state.isPlaying
+      || state.isTimelapseCapturing
+      || state.isCaptureOperationInProgress
+    ) {
       return;
     }
 
@@ -1082,7 +1111,13 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("timelapse:start", () => {
-    if (state.appMode !== "project-editor" || state.isTimelapseCapturing || state.cameraStatus !== "ready" || state.isPlaying) {
+    if (
+      state.appMode !== "project-editor"
+      || state.isTimelapseCapturing
+      || state.cameraStatus !== "ready"
+      || state.isPlaying
+      || state.isCaptureOperationInProgress
+    ) {
       return;
     }
 
@@ -1137,6 +1172,8 @@ export default function applicationStore(state, emitter) {
 
     state.isPlaying = true;
     state.playbackFrameIndex = 0;
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
 
     playbackController.playFrames({
@@ -1144,11 +1181,15 @@ export default function applicationStore(state, emitter) {
       framesPerSecond: 8,
       onFrameChange(frameIndex) {
         state.playbackFrameIndex = frameIndex;
+        updateTimelineScrollTargetAndClampCurrentOffset();
+        animateTimelineScrollOffsetTowardsTargetIfNeeded();
         emitter.emit("render");
       },
       onComplete() {
         state.isPlaying = false;
         state.playbackFrameIndex = null;
+        updateTimelineScrollTargetAndClampCurrentOffset();
+        animateTimelineScrollOffsetTowardsTargetIfNeeded();
         emitter.emit("render");
       },
     });
@@ -1158,6 +1199,8 @@ export default function applicationStore(state, emitter) {
     playbackController.stop();
     state.isPlaying = false;
     state.playbackFrameIndex = null;
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    animateTimelineScrollOffsetTowardsTargetIfNeeded();
     emitter.emit("render");
   });
 }

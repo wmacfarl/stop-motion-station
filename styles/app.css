@@ -94,8 +94,10 @@ body {
 
 .controls-panel {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   justify-content: center;
+  gap: 12px;
   padding: 12px;
   box-sizing: border-box;
   background: #1a1a1a;
@@ -129,6 +131,43 @@ body {
 .auto-capture-shortcut-hint {
   color: #b8b8b8;
   font-size: clamp(11px, 1.4vh, 15px);
+  line-height: 1.4;
+}
+
+.capture-readiness-indicator-panel {
+  width: 100%;
+  border: 1px solid #3b3b3b;
+  border-radius: 8px;
+  background: #202020;
+  padding: 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.capture-readiness-indicator-title {
+  color: #f1f1f1;
+  font-size: clamp(14px, 2vh, 22px);
+  font-weight: 700;
+}
+
+.capture-readiness-state {
+  font-size: clamp(12px, 1.7vh, 17px);
+  font-weight: 700;
+}
+
+.capture-readiness-state.is-ready {
+  color: #7dff83;
+}
+
+.capture-readiness-state.is-busy {
+  color: #ffcc80;
+}
+
+.capture-readiness-status-text {
+  color: #e3e3e3;
+  font-size: clamp(11px, 1.6vh, 16px);
   line-height: 1.4;
 }
 
