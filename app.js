@@ -15,8 +15,15 @@ import {
 } from "./helpers/frame-operations.js";
 
 const ENABLE_KEYBOARD_DEBUG_LOGGING = true;
+let hasAttachedGlobalKeyboardListener = false;
 
 function attachGlobalKeyboardListener(emitter) {
+  if (hasAttachedGlobalKeyboardListener) {
+    return;
+  }
+
+  hasAttachedGlobalKeyboardListener = true;
+
   function log(...args) {
     if (ENABLE_KEYBOARD_DEBUG_LOGGING) {
       console.log("[KEYBOARD]", ...args);
@@ -66,14 +73,8 @@ function attachGlobalKeyboardListener(emitter) {
 
   log("Attaching keyboard listeners");
 
-  // Attach to document (primary)
+  // Attach to document only once to avoid duplicate key handling.
   document.addEventListener("keydown", handleKeyboardShortcuts, {
-    passive: false,
-    capture: true,
-  });
-
-  // Attach to window (redundancy)
-  window.addEventListener("keydown", handleKeyboardShortcuts, {
     passive: false,
     capture: true,
   });
