@@ -104,12 +104,17 @@ export default function previewPanel(state, emit) {
   const { previewWidth, previewHeight } = state.appSurfaceLayout;
 
   if (state.cameraStatus === "idle") {
+    const idleMessage = state.cameraStartupWaitingForUserGesture
+      ? "Click or press any key to enable camera"
+      : null;
+
     return html`
       <section
         class="preview-panel"
         style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
       >
         <div class="preview-status-message">
+          ${idleMessage ? html`<div>${idleMessage}</div>` : ""}
           <button
             class="start-camera-button"
             onclick=${() => emit("camera:request-access")}
@@ -121,13 +126,13 @@ export default function previewPanel(state, emit) {
     `;
   }
 
-  if (state.cameraStatus === "requesting" || state.cameraStatus === "booting") {
+  if (state.cameraStatus === "starting") {
     return html`
       <section
         class="preview-panel"
         style=${`width: ${previewWidth}px; height: ${previewHeight}px;`}
       >
-        <div class="preview-status-message">Requesting camera…</div>
+        <div class="preview-status-message">Starting camera…</div>
       </section>
     `;
   }

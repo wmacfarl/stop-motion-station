@@ -2,6 +2,7 @@ export function createInitialApplicationState() {
   return {
     cameraStatus: "idle",
     cameraErrorMessage: null,
+    cameraStartupWaitingForUserGesture: false,
     frames: [],
     selectedTimelineItem: {
       type: "gap",

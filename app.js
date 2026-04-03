@@ -15,7 +15,187 @@ import {
 } from "./helpers/frame-operations.js";
 
 const ENABLE_KEYBOARD_DEBUG_LOGGING = true;
+const ENABLE_CAMERA_STARTUP_DEBUG_LOGGING = true;
 let hasAttachedGlobalKeyboardListener = false;
+
+function logCameraStartup(...args) {
+  if (ENABLE_CAMERA_STARTUP_DEBUG_LOGGING) {
+    console.log("[CAMERA_STARTUP]", ...args);
+  }
+}
+
+async function tryStartCameraPreview({ state, emitter, reason }) {
+  if (state.cameraStatus === "starting" || state.cameraStatus === "ready") {
+    logCameraStartup("Skipping camera start attempt because camera is already starting or ready", {
+      reason,
+      cameraStatus: state.cameraStatus,
+      timestampMilliseconds: performance.now(),
+    });
+    return false;
+  }
+
+  const attemptStartedAtMilliseconds = performance.now();
+
+  logCameraStartup("Starting camera preview attempt", {
+    reason,
+    timestampMilliseconds: attemptStartedAtMilliseconds,
+    activeElementTagName: document.activeElement?.tagName ?? null,
+    visibilityState: document.visibilityState,
+  });
+
+  state.cameraStatus = "starting";
+  state.cameraErrorMessage = null;
+  emitter.emit("render");
+
+  try {
+    logCameraStartup("Calling cameraService.startPreview()", {
+      reason,
+      timestampMilliseconds: performance.now(),
+    });
+
+    await cameraService.startPreview();
+
+    state.cameraStatus = "ready";
+
+    logCameraStartup("Camera preview started successfully", {
+      reason,
+      timestampMilliseconds: performance.now(),
+      durationMilliseconds: performance.now() - attemptStartedAtMilliseconds,
+    });
+
+    emitter.emit("render");
+    return true;
+  } catch (cameraStartupError) {
+    state.cameraStatus = "idle";
+    state.cameraErrorMessage = cameraStartupError.message;
+
+    logCameraStartup("Camera preview failed to start", {
+      reason,
+      timestampMilliseconds: performance.now(),
+      durationMilliseconds: performance.now() - attemptStartedAtMilliseconds,
+      errorName: cameraStartupError?.name ?? null,
+      errorMessage: cameraStartupError?.message ?? null,
+    });
+
+    emitter.emit("render");
+    return false;
+  }
+}
+
+function armNextUserGestureCameraStartup({ state, emitter }) {
+  if (state.cameraStatus === "ready" || state.cameraStartupWaitingForUserGesture) {
+    logCameraStartup("Not arming user gesture fallback because camera is ready or fallback is already armed", {
+      cameraStatus: state.cameraStatus,
+      cameraStartupWaitingForUserGesture: state.cameraStartupWaitingForUserGesture,
+      timestampMilliseconds: performance.now(),
+    });
+    return;
+  }
+
+  state.cameraStartupWaitingForUserGesture = true;
+
+  logCameraStartup("Arming one-time user gesture fallback for camera startup", {
+    timestampMilliseconds: performance.now(),
+  });
+
+  emitter.emit("render");
+
+  async function handleUserGesture(userGestureEvent) {
+    logCameraStartup("User gesture fallback triggered", {
+      eventType: userGestureEvent.type,
+      eventKey: userGestureEvent.key ?? null,
+      timestampMilliseconds: performance.now(),
+    });
+
+    removeUserGestureListeners();
+    state.cameraStartupWaitingForUserGesture = false;
+
+    const didStartCamera = await tryStartCameraPreview({
+      state,
+      emitter,
+      reason: `user-gesture:${userGestureEvent.type}`,
+    });
+
+    if (!didStartCamera && state.cameraStatus !== "ready") {
+      state.cameraStatus = "idle";
+      emitter.emit("render");
+    }
+  }
+
+  function removeUserGestureListeners() {
+    document.removeEventListener("pointerdown", handleUserGesture, true);
+    document.removeEventListener("click", handleUserGesture, true);
+    document.removeEventListener("keydown", handleUserGesture, true);
+
+    logCameraStartup("Removed user gesture fallback listeners", {
+      timestampMilliseconds: performance.now(),
+    });
+  }
+
+  document.addEventListener("pointerdown", handleUserGesture, {
+    capture: true,
+    once: true,
+  });
+
+  document.addEventListener("click", handleUserGesture, {
+    capture: true,
+    once: true,
+  });
+
+  document.addEventListener("keydown", handleUserGesture, {
+    capture: true,
+    once: true,
+  });
+}
+
+function scheduleAutomaticCameraStartup({ state, emitter }) {
+  logCameraStartup("Scheduling automatic camera startup attempt 1", {
+    delayMilliseconds: 300,
+    timestampMilliseconds: performance.now(),
+  });
+
+  window.setTimeout(async () => {
+    logCameraStartup("Automatic camera startup attempt 1 timer fired", {
+      timestampMilliseconds: performance.now(),
+    });
+
+    const didStartOnFirstAttempt = await tryStartCameraPreview({
+      state,
+      emitter,
+      reason: "automatic-startup-attempt-1",
+    });
+
+    if (didStartOnFirstAttempt) {
+      return;
+    }
+
+    logCameraStartup("Scheduling automatic camera startup attempt 2", {
+      delayMilliseconds: 900,
+      timestampMilliseconds: performance.now(),
+    });
+
+    window.setTimeout(async () => {
+      logCameraStartup("Automatic camera startup attempt 2 timer fired", {
+        timestampMilliseconds: performance.now(),
+      });
+
+      const didStartOnSecondAttempt = await tryStartCameraPreview({
+        state,
+        emitter,
+        reason: "automatic-startup-attempt-2",
+      });
+
+      if (didStartOnSecondAttempt) {
+        return;
+      }
+
+      armNextUserGestureCameraStartup({
+        state,
+        emitter,
+      });
+    }, 900);
+  }, 300);
+}
 
 function attachGlobalKeyboardListener(emitter) {
   if (hasAttachedGlobalKeyboardListener) {
@@ -320,32 +500,25 @@ export default function applicationStore(state, emitter) {
     focusApplicationRootForKeyboardInput();
 
     await frameStorageService.initialize();
+    scheduleAutomaticCameraStartup({ state, emitter });
     emitter.emit("render");
   });
 
   emitter.on("camera:request-access", async () => {
-    if (
-      state.cameraStatus === "requesting"
-      || state.cameraStatus === "ready"
-      || state.isTimelapseCapturing
-    ) {
+    if (state.isTimelapseCapturing) {
       return;
     }
 
-    state.cameraStatus = "requesting";
-    state.cameraErrorMessage = null;
-    emitter.emit("render");
+    const didStartCamera = await tryStartCameraPreview({
+      state,
+      emitter,
+      reason: "manual-request",
+    });
 
-    try {
-      await cameraService.startPreview();
-      window.setTimeout(focusApplicationRootForKeyboardInput, 0);
-      state.cameraStatus = "ready";
-    } catch (cameraStartupError) {
+    if (!didStartCamera && state.cameraStatus !== "ready") {
       state.cameraStatus = "error";
-      state.cameraErrorMessage = cameraStartupError.message;
+      emitter.emit("render");
     }
-
-    emitter.emit("render");
   });
 
   emitter.on("application:resize", () => {
