@@ -388,15 +388,36 @@ export default function applicationStore(state, emitter) {
   let animationFrameIdentifierForTimelineScroll = null;
   let automaticCaptureTimeoutIdentifier = null;
   let automaticCaptureSessionIdentifier = 0;
+  let pendingLayoutRefreshAnimationFrameIdentifier = null;
 
-  function updateApplicationLayoutFromViewport() {
-    state.appSurfaceLayout = computeLayout({
+  function resolveViewportDimensionsForLayout() {
+    const fullscreenElement = document.fullscreenElement;
+    if (fullscreenElement) {
+      const fullscreenElementBounds = fullscreenElement.getBoundingClientRect();
+      if (fullscreenElementBounds.width > 0 && fullscreenElementBounds.height > 0) {
+        return {
+          viewportWidth: fullscreenElementBounds.width,
+          viewportHeight: fullscreenElementBounds.height,
+        };
+      }
+    }
+
+    return {
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
+    };
+  }
+
+  function updateApplicationLayoutFromViewport() {
+    const { viewportWidth, viewportHeight } = resolveViewportDimensionsForLayout();
+
+    state.appSurfaceLayout = computeLayout({
+      viewportWidth,
+      viewportHeight,
     });
 
     state.projectBrowserColumnCount = computeProjectBrowserColumnCount({
-      availableWidth: window.innerWidth,
+      availableWidth: viewportWidth,
     });
   }
 
@@ -742,11 +763,27 @@ export default function applicationStore(state, emitter) {
       emitter.emit("application:resize");
     };
 
+    const scheduleDelayedLayoutRefresh = () => {
+      if (pendingLayoutRefreshAnimationFrameIdentifier !== null) {
+        window.cancelAnimationFrame(pendingLayoutRefreshAnimationFrameIdentifier);
+      }
+
+      pendingLayoutRefreshAnimationFrameIdentifier = window.requestAnimationFrame(() => {
+        pendingLayoutRefreshAnimationFrameIdentifier = window.requestAnimationFrame(() => {
+          pendingLayoutRefreshAnimationFrameIdentifier = null;
+          emitter.emit("application:resize");
+        });
+      });
+    };
+
     window.addEventListener("load", focusApplicationRootForKeyboardInput);
     window.addEventListener("click", focusApplicationRootForKeyboardInput);
     window.addEventListener("resize", handleViewportChange);
     window.addEventListener("orientationchange", handleViewportChange);
-    document.addEventListener("fullscreenchange", handleViewportChange);
+    document.addEventListener("fullscreenchange", () => {
+      handleViewportChange();
+      scheduleDelayedLayoutRefresh();
+    });
     window.setInterval(focusApplicationRootForKeyboardInput, 1000);
     focusApplicationRootForKeyboardInput();
 
