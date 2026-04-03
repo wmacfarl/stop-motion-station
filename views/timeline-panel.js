@@ -5,6 +5,7 @@ function renderGapButton(state, emit, gapIndex) {
   return html`
     <button
       class=${`timeline-gap ${gapIsSelected ? "is-selected" : ""}`}
+      disabled=${state.isTimelapseCapturing}
       onclick=${() => emit("timeline:select-gap", gapIndex)}
       aria-label=${`Select insertion point ${gapIndex}`}
       data-timeline-item-type="gap"
@@ -30,6 +31,7 @@ function renderFrameButton(state, emit, frame, frameIndex) {
   return html`
     <button
       class=${frameButtonClassNames.join(" ")}
+      disabled=${state.isTimelapseCapturing}
       onclick=${() => emit("timeline:select-frame", frameIndex)}
       aria-label=${`Select frame ${frameIndex + 1}`}
       data-timeline-item-type="frame"

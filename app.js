@@ -17,6 +17,23 @@ import {
 const ENABLE_KEYBOARD_DEBUG_LOGGING = true;
 const ENABLE_CAMERA_STARTUP_DEBUG_LOGGING = true;
 let hasAttachedGlobalKeyboardListener = false;
+const THREE_SECOND_COUNTDOWN_SECONDS = 3;
+const automaticCaptureMetronomeSound = new Audio(new URL("./assets/sound/metronome-tick.wav", import.meta.url).href);
+const pictureShutterClickSound = new Audio(new URL("./assets/sound/shutter-click.wav", import.meta.url).href);
+
+automaticCaptureMetronomeSound.preload = "auto";
+pictureShutterClickSound.preload = "auto";
+
+function playSoundEffect(soundEffectAudioElement) {
+  if (!soundEffectAudioElement) {
+    return;
+  }
+
+  soundEffectAudioElement.currentTime = 0;
+  soundEffectAudioElement.play().catch((audioPlaybackError) => {
+    console.warn("Could not play sound effect:", audioPlaybackError);
+  });
+}
 
 function logCameraStartup(...args) {
   if (ENABLE_CAMERA_STARTUP_DEBUG_LOGGING) {
@@ -197,7 +214,7 @@ function scheduleAutomaticCameraStartup({ state, emitter }) {
   }, 300);
 }
 
-function attachGlobalKeyboardListener(emitter) {
+function attachGlobalKeyboardListener(state, emitter) {
   if (hasAttachedGlobalKeyboardListener) {
     return;
   }
@@ -217,6 +234,13 @@ function attachGlobalKeyboardListener(emitter) {
       repeat: event.repeat,
       activeElement: document.activeElement?.tagName,
     });
+
+    if (state.isTimelapseCapturing) {
+      log("ACTION: disable auto-capture because a key was pressed");
+      event.preventDefault();
+      emitter.emit("timelapse:stop");
+      return;
+    }
 
     const key = event.key;
     const code = event.code;
@@ -300,10 +324,12 @@ function attachGlobalKeyboardListener(emitter) {
 
 export default function applicationStore(state, emitter) {
   Object.assign(state, createInitialApplicationState());
-  attachGlobalKeyboardListener(emitter);
+  attachGlobalKeyboardListener(state, emitter);
 
   let timelapseCaptureInProgress = false;
   let animationFrameIdentifierForTimelineScroll = null;
+  let automaticCaptureTimeoutIdentifier = null;
+  let automaticCaptureSessionIdentifier = 0;
 
   function updateApplicationLayoutFromViewport() {
     state.appSurfaceLayout = computeLayout({
@@ -315,6 +341,8 @@ export default function applicationStore(state, emitter) {
   async function captureAndInsertFrameRecord() {
     const frameIdentifier = createFrameId();
     const captureFlowStartedAtMilliseconds = performance.now();
+
+    playSoundEffect(pictureShutterClickSound);
 
     const capturedFrameData = await measureAsyncOperationDuration({
       operationName: "camera-frame-capture",
@@ -420,7 +448,64 @@ export default function applicationStore(state, emitter) {
       state.timelapseTimerIdentifier = null;
     }
 
+    if (automaticCaptureTimeoutIdentifier !== null) {
+      window.clearTimeout(automaticCaptureTimeoutIdentifier);
+      automaticCaptureTimeoutIdentifier = null;
+    }
+
     timelapseCaptureInProgress = false;
+    state.autoCaptureCountdownSecondsRemaining = null;
+  }
+
+  function waitForMillisecondsBeforeNextAutomaticCapture(millisecondsToWait) {
+    return new Promise((resolve) => {
+      automaticCaptureTimeoutIdentifier = window.setTimeout(() => {
+        automaticCaptureTimeoutIdentifier = null;
+        resolve();
+      }, millisecondsToWait);
+    });
+  }
+
+  async function runAutomaticCaptureCycleForSession(automaticCaptureSessionId) {
+    if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
+      return;
+    }
+
+    for (
+      let secondsRemainingInCountdown = THREE_SECOND_COUNTDOWN_SECONDS;
+      secondsRemainingInCountdown >= 1;
+      secondsRemainingInCountdown -= 1
+    ) {
+      if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
+        return;
+      }
+
+      state.autoCaptureCountdownSecondsRemaining = secondsRemainingInCountdown;
+      playSoundEffect(automaticCaptureMetronomeSound);
+      emitter.emit("render");
+      await waitForMillisecondsBeforeNextAutomaticCapture(1000);
+    }
+
+    if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
+      return;
+    }
+
+    timelapseCaptureInProgress = true;
+
+    try {
+      await captureAndInsertFrameRecord();
+    } catch (captureError) {
+      console.error("Failed to capture timelapse frame:", captureError);
+    } finally {
+      timelapseCaptureInProgress = false;
+      emitter.emit("render");
+    }
+
+    if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
+      return;
+    }
+
+    runAutomaticCaptureCycleForSession(automaticCaptureSessionId);
   }
 
   function updateVisibleTimelineScrollTargetFromSelection() {
@@ -654,28 +739,9 @@ export default function applicationStore(state, emitter) {
     }
 
     state.isTimelapseCapturing = true;
-
-    const captureEveryInterval = async () => {
-      if (timelapseCaptureInProgress || !state.isTimelapseCapturing) {
-        return;
-      }
-
-      timelapseCaptureInProgress = true;
-
-      try {
-        await captureAndInsertFrameRecord();
-      } catch (captureError) {
-        console.error("Failed to capture timelapse frame:", captureError);
-      } finally {
-        timelapseCaptureInProgress = false;
-        emitter.emit("render");
-      }
-    };
-
-    state.timelapseTimerIdentifier = window.setInterval(
-      captureEveryInterval,
-      state.timelapseIntervalMilliseconds,
-    );
+    automaticCaptureSessionIdentifier += 1;
+    state.autoCaptureCountdownSecondsRemaining = THREE_SECOND_COUNTDOWN_SECONDS;
+    runAutomaticCaptureCycleForSession(automaticCaptureSessionIdentifier);
 
     emitter.emit("render");
   });
@@ -687,6 +753,7 @@ export default function applicationStore(state, emitter) {
 
     stopTimelapseCaptureInterval();
     state.isTimelapseCapturing = false;
+    automaticCaptureSessionIdentifier += 1;
     emitter.emit("render");
   });
 
