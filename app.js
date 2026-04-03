@@ -296,7 +296,9 @@ function attachGlobalKeyboardListener(state, emitter) {
       return;
     }
 
-    if (key === "Escape") {
+    const shouldReturnToProjectBrowser = key === "Escape" || key === "w" || key === "W";
+
+    if (shouldReturnToProjectBrowser) {
       event.preventDefault();
       emitter.emit("project-editor:return-to-browser");
       return;
@@ -330,7 +332,12 @@ function attachGlobalKeyboardListener(state, emitter) {
       return;
     }
 
-    if (key === "ArrowDown") {
+    const shouldDeleteSelectedFrame =
+      key === "ArrowDown" ||
+      key === "Backspace" ||
+      key === "Delete";
+
+    if (shouldDeleteSelectedFrame) {
       log("ACTION: delete");
       event.preventDefault();
       emitter.emit("frames:delete-selected");
