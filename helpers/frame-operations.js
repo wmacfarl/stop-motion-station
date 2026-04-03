@@ -14,8 +14,9 @@ export function createInitialApplicationState() {
     isPlaying: false,
     playbackFrameIndex: null,
     isTimelapseCapturing: false,
-    timelapseIntervalMilliseconds: 500,
+    timelapseIntervalMilliseconds: 3000,
     timelapseTimerIdentifier: null,
+    autoCaptureCountdownSecondsRemaining: null,
     appSurfaceLayout: {
       width: 0,
       height: 0,
