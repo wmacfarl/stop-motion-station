@@ -84,7 +84,7 @@ body {
 
 .previous-frame-onion-skin-canvas {
   pointer-events: none;
-  opacity: 0.2;
+  opacity: 0.35;
 }
 
 .live-video-container video {
