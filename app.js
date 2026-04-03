@@ -14,8 +14,98 @@ import {
   ensureTimelineSelectionIsVisible,
 } from "./helpers/frame-operations.js";
 
+const ENABLE_KEYBOARD_DEBUG_LOGGING = true;
+
+function attachGlobalKeyboardListener(emitter) {
+  function log(...args) {
+    if (ENABLE_KEYBOARD_DEBUG_LOGGING) {
+      console.log("[KEYBOARD]", ...args);
+    }
+  }
+
+  function handleKeyboardShortcuts(event) {
+    log("keydown event received", {
+      key: event.key,
+      code: event.code,
+      repeat: event.repeat,
+      activeElement: document.activeElement?.tagName,
+    });
+
+    const key = event.key;
+    const code = event.code;
+
+    const isSpace =
+      code === "Space" ||
+      key === " " ||
+      key === "Spacebar" ||
+      key === "Space";
+
+    if (isSpace) {
+      log("ACTION: capture frame");
+      event.preventDefault();
+      emitter.emit("frames:capture");
+      return;
+    }
+
+    if (key === "ArrowLeft") {
+      log("ACTION: move left");
+      event.preventDefault();
+      emitter.emit("timeline:move-selection-left");
+      return;
+    }
+
+    if (key === "ArrowRight") {
+      log("ACTION: move right");
+      event.preventDefault();
+      emitter.emit("timeline:move-selection-right");
+      return;
+    }
+
+    log("UNHANDLED KEY", key);
+  }
+
+  log("Attaching keyboard listeners");
+
+  // Attach to document (primary)
+  document.addEventListener("keydown", handleKeyboardShortcuts, {
+    passive: false,
+    capture: true,
+  });
+
+  // Attach to window (redundancy)
+  window.addEventListener("keydown", handleKeyboardShortcuts, {
+    passive: false,
+    capture: true,
+  });
+
+  // Focus logging
+  document.addEventListener("focusin", () => {
+    log("focusin", document.activeElement);
+  });
+
+  document.addEventListener("focusout", () => {
+    log("focusout", document.activeElement);
+  });
+
+  // Continuous focus visibility
+  setInterval(() => {
+    log("activeElement snapshot", document.activeElement);
+  }, 2000);
+
+  // Ensure body is focusable and focused
+  document.body.tabIndex = 0;
+  document.body.focus();
+
+  // Re-focus on click (important on Pi)
+  document.addEventListener("click", () => {
+    log("click → forcing focus back to body");
+    document.body.focus();
+  });
+}
+
 export default function applicationStore(state, emitter) {
   Object.assign(state, createInitialApplicationState());
+  attachGlobalKeyboardListener(emitter);
 
   let timelapseCaptureInProgress = false;
   let animationFrameIdentifierForTimelineScroll = null;
@@ -202,41 +292,6 @@ export default function applicationStore(state, emitter) {
   updateApplicationLayoutFromViewport();
 
   emitter.on("application:startup", async () => {
-    const handleKeyboardShortcuts = (keyboardEvent) => {
-      const keyPressed = keyboardEvent.key;
-      const isSpaceShortcutPressed = keyboardEvent.code === "Space"
-        || keyPressed === " "
-        || keyPressed === "Spacebar";
-
-      if (isSpaceShortcutPressed) {
-        keyboardEvent.preventDefault();
-        emitter.emit("frames:capture");
-        return;
-      }
-
-      if (keyPressed === "ArrowLeft") {
-        keyboardEvent.preventDefault();
-        emitter.emit("timeline:move-selection-left");
-        return;
-      }
-
-      if (keyPressed === "ArrowRight") {
-        keyboardEvent.preventDefault();
-        emitter.emit("timeline:move-selection-right");
-        return;
-      }
-
-      if (keyPressed === "ArrowUp") {
-        keyboardEvent.preventDefault();
-        emitter.emit("playback:start");
-      }
-
-      if (keyPressed === "ArrowDown") {
-        keyboardEvent.preventDefault();
-        emitter.emit("frames:delete-selected");
-      }
-    };
-
     const handleViewportChange = () => {
       emitter.emit("application:resize");
     };
@@ -245,7 +300,6 @@ export default function applicationStore(state, emitter) {
     window.addEventListener("click", focusApplicationRootForKeyboardInput);
     window.addEventListener("resize", handleViewportChange);
     window.addEventListener("orientationchange", handleViewportChange);
-    window.addEventListener("keydown", handleKeyboardShortcuts, { passive: false });
     document.addEventListener("fullscreenchange", handleViewportChange);
     window.setInterval(focusApplicationRootForKeyboardInput, 1000);
     focusApplicationRootForKeyboardInput();
