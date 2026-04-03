@@ -68,6 +68,20 @@ function attachGlobalKeyboardListener(emitter) {
       return;
     }
 
+    if (key === "ArrowUp") {
+      log("ACTION: play");
+      event.preventDefault();
+      emitter.emit("playback:start");
+      return;
+    }
+
+    if (key === "ArrowDown") {
+      log("ACTION: delete");
+      event.preventDefault();
+      emitter.emit("frames:delete-selected");
+      return;
+    }
+
     log("UNHANDLED KEY", key);
   }
 
