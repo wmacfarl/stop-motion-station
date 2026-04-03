@@ -414,6 +414,11 @@ body {
   cursor: pointer;
 }
 
+.project-browser-modal-button.is-selected {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
 .project-browser-modal-button.play-button {
   background: #225f2c;
   border-color: #3f8f4f;

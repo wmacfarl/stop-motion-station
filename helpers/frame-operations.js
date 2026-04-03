@@ -8,6 +8,7 @@ export function createInitialApplicationState() {
     projects: [],
     selectedProjectBrowserIndex: 0,
     projectBrowserModalProjectId: null,
+    projectBrowserModalSelectedActionIndex: 0,
     projectBrowserColumnCount: 1,
     currentProjectId: null,
     currentProjectTitle: null,

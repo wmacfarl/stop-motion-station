@@ -29,6 +29,11 @@ let hasAttachedGlobalKeyboardListener = false;
 const THREE_SECOND_COUNTDOWN_SECONDS = 3;
 const automaticCaptureMetronomeSound = new Audio(new URL("./assets/sound/metronome-tick.wav", import.meta.url).href);
 const pictureShutterClickSound = new Audio(new URL("./assets/sound/shutter-click.wav", import.meta.url).href);
+const projectBrowserModalActionList = [
+  "play-project",
+  "delete-project",
+  "back-to-browser",
+];
 
 automaticCaptureMetronomeSound.preload = "auto";
 pictureShutterClickSound.preload = "auto";
@@ -306,6 +311,29 @@ function attachGlobalKeyboardListener(state, emitter) {
       if (shouldCloseProjectBrowserModal && state.projectBrowserModalProjectId) {
         event.preventDefault();
         emitter.emit("project-browser:close-project-modal");
+        return;
+      }
+
+      if (state.projectBrowserModalProjectId) {
+        if (key === "ArrowLeft" || key === "ArrowUp") {
+          event.preventDefault();
+          emitter.emit("project-browser:move-modal-selection-previous");
+          return;
+        }
+
+        if (key === "ArrowRight" || key === "ArrowDown") {
+          event.preventDefault();
+          emitter.emit("project-browser:move-modal-selection-next");
+          return;
+        }
+
+        if (isSpace) {
+          event.preventDefault();
+          emitter.emit("project-browser:activate-selected-modal-action");
+          return;
+        }
+
+        log("UNHANDLED PROJECT BROWSER MODAL KEY", key);
         return;
       }
 
@@ -590,6 +618,22 @@ export default function applicationStore(state, emitter) {
     });
 
     state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
+  }
+
+  function moveProjectBrowserModalSelectionByOffset(actionOffset) {
+    const modalActionCount = projectBrowserModalActionList.length;
+
+    if (modalActionCount < 1) {
+      state.projectBrowserModalSelectedActionIndex = 0;
+      return;
+    }
+
+    const currentSelectedActionIndex = state.projectBrowserModalSelectedActionIndex ?? 0;
+    const normalizedSelectedActionIndex = ((currentSelectedActionIndex + actionOffset) % modalActionCount
+      + modalActionCount) % modalActionCount;
+
+    state.projectBrowserModalSelectedActionIndex = normalizedSelectedActionIndex;
   }
 
   async function activateSelectedProjectBrowserTile() {
@@ -608,6 +652,7 @@ export default function applicationStore(state, emitter) {
     }
 
     state.projectBrowserModalProjectId = selectedTile.projectId;
+    state.projectBrowserModalSelectedActionIndex = 0;
   }
 
   function getProjectMetadataForProjectBrowserModal() {
@@ -625,6 +670,7 @@ export default function applicationStore(state, emitter) {
 
     if (!selectedProjectMetadata) {
       state.projectBrowserModalProjectId = null;
+      state.projectBrowserModalSelectedActionIndex = 0;
       return;
     }
 
@@ -633,6 +679,7 @@ export default function applicationStore(state, emitter) {
       projectId: selectedProjectMetadata.id,
     });
     state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
 
     await openProjectInEditorById({
       projectId: selectedProjectMetadata.id,
@@ -644,6 +691,7 @@ export default function applicationStore(state, emitter) {
 
     if (!selectedProjectMetadata) {
       state.projectBrowserModalProjectId = null;
+      state.projectBrowserModalSelectedActionIndex = 0;
       return;
     }
 
@@ -668,6 +716,7 @@ export default function applicationStore(state, emitter) {
     });
     await reloadProjectsFromStorage();
     state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
     state.selectedProjectBrowserIndex = clampSelectionIndex({
       selectedIndex: state.selectedProjectBrowserIndex,
       tileCount: createProjectBrowserTileList({ projects: state.projects }).length,
@@ -967,6 +1016,7 @@ export default function applicationStore(state, emitter) {
     await reloadProjectsFromStorage();
     state.selectedProjectBrowserIndex = 0;
     state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
     state.appMode = "project-browser";
     emitter.emit("render");
   });
@@ -1060,6 +1110,49 @@ export default function applicationStore(state, emitter) {
     }
 
     state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:move-modal-selection-previous", () => {
+    if (state.appMode !== "project-browser" || !state.projectBrowserModalProjectId) {
+      return;
+    }
+
+    moveProjectBrowserModalSelectionByOffset(-1);
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:move-modal-selection-next", () => {
+    if (state.appMode !== "project-browser" || !state.projectBrowserModalProjectId) {
+      return;
+    }
+
+    moveProjectBrowserModalSelectionByOffset(1);
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:activate-selected-modal-action", async () => {
+    if (state.appMode !== "project-browser" || !state.projectBrowserModalProjectId) {
+      return;
+    }
+
+    const selectedModalActionKey = projectBrowserModalActionList[state.projectBrowserModalSelectedActionIndex];
+
+    if (selectedModalActionKey === "play-project") {
+      await openProjectBrowserModalProjectInEditor();
+      emitter.emit("render");
+      return;
+    }
+
+    if (selectedModalActionKey === "delete-project") {
+      await deleteProjectInProjectBrowserModal();
+      emitter.emit("render");
+      return;
+    }
+
+    state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
     emitter.emit("render");
   });
 
@@ -1093,6 +1186,7 @@ export default function applicationStore(state, emitter) {
       projectId: state.currentProjectId,
     });
     state.projectBrowserModalProjectId = null;
+    state.projectBrowserModalSelectedActionIndex = 0;
     state.appMode = "project-browser";
     emitter.emit("render");
   });

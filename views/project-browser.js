@@ -17,6 +17,27 @@ export default function projectBrowserView(state, emit) {
   const modalProjectMetadata = state.projectBrowserModalProjectId
     ? state.projects.find((projectMetadata) => projectMetadata.id === state.projectBrowserModalProjectId) ?? null
     : null;
+  const modalButtonViewModels = [
+    {
+      label: "Play",
+      styleClassName: "play-button",
+      onActivate: () => emit("project-browser:play-modal-project"),
+    },
+    {
+      label: "Delete",
+      styleClassName: "delete-button",
+      onActivate: () => emit("project-browser:delete-modal-project"),
+    },
+    {
+      label: "Back to Browser",
+      styleClassName: "back-button",
+      onActivate: () => emit("project-browser:close-project-modal"),
+    },
+  ];
+  const selectedModalButtonIndex = Math.min(
+    Math.max(0, state.projectBrowserModalSelectedActionIndex ?? 0),
+    modalButtonViewModels.length - 1,
+  );
 
   return html`
     <div id="app" class="application-root project-browser-root">
@@ -97,27 +118,15 @@ export default function projectBrowserView(state, emit) {
                 `}
 
               <div class="project-browser-modal-button-row">
-                <button
-                  type="button"
-                  class="project-browser-modal-button play-button"
-                  onclick=${() => emit("project-browser:play-modal-project")}
-                >
-                  Play
-                </button>
-                <button
-                  type="button"
-                  class="project-browser-modal-button delete-button"
-                  onclick=${() => emit("project-browser:delete-modal-project")}
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  class="project-browser-modal-button back-button"
-                  onclick=${() => emit("project-browser:close-project-modal")}
-                >
-                  Back to Browser
-                </button>
+                ${modalButtonViewModels.map((modalButtonViewModel, modalButtonIndex) => html`
+                  <button
+                    type="button"
+                    class=${`project-browser-modal-button ${modalButtonViewModel.styleClassName} ${modalButtonIndex === selectedModalButtonIndex ? "is-selected" : ""}`}
+                    onclick=${modalButtonViewModel.onActivate}
+                  >
+                    ${modalButtonViewModel.label}
+                  </button>
+                `)}
               </div>
             </section>
           </div>
