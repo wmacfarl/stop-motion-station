@@ -1,6 +1,7 @@
 import cameraService from "./services/camera-service.js";
 import frameStorageService from "./services/frame-storage-service.js";
 import playbackController from "./services/playback-controller.js";
+import projectStorageService from "./services/project-storage-service.js";
 import computeLayout from "./helpers/compute-layout.js";
 import createFrameId from "./helpers/create-frame-id.js";
 import {
@@ -13,6 +14,14 @@ import {
   moveTimelineSelectionByOffset,
   ensureTimelineSelectionIsVisible,
 } from "./helpers/frame-operations.js";
+import {
+  createProjectBrowserTileList,
+  moveProjectBrowserSelectionByDirection,
+  findBrowserSelectionIndexForProjectId,
+  createDefaultProjectTitle,
+  clampSelectionIndex,
+} from "./helpers/project-browser-operations.js";
+import { computeProjectBrowserColumnCount } from "./views/project-browser.js";
 
 const ENABLE_KEYBOARD_DEBUG_LOGGING = true;
 const ENABLE_CAMERA_STARTUP_DEBUG_LOGGING = true;
@@ -233,6 +242,7 @@ function attachGlobalKeyboardListener(state, emitter) {
       code: event.code,
       repeat: event.repeat,
       activeElement: document.activeElement?.tagName,
+      appMode: state.appMode,
     });
 
     if (state.isTimelapseCapturing) {
@@ -250,6 +260,47 @@ function attachGlobalKeyboardListener(state, emitter) {
       key === " " ||
       key === "Spacebar" ||
       key === "Space";
+
+    if (state.appMode === "project-browser") {
+      if (key === "ArrowLeft") {
+        event.preventDefault();
+        emitter.emit("project-browser:move-selection-left");
+        return;
+      }
+
+      if (key === "ArrowRight") {
+        event.preventDefault();
+        emitter.emit("project-browser:move-selection-right");
+        return;
+      }
+
+      if (key === "ArrowUp") {
+        event.preventDefault();
+        emitter.emit("project-browser:move-selection-up");
+        return;
+      }
+
+      if (key === "ArrowDown") {
+        event.preventDefault();
+        emitter.emit("project-browser:move-selection-down");
+        return;
+      }
+
+      if (isSpace) {
+        event.preventDefault();
+        emitter.emit("project-browser:activate-selected-tile");
+        return;
+      }
+
+      log("UNHANDLED PROJECT BROWSER KEY", key);
+      return;
+    }
+
+    if (key === "Escape") {
+      event.preventDefault();
+      emitter.emit("project-editor:return-to-browser");
+      return;
+    }
 
     if (isSpace) {
       log("ACTION: capture frame");
@@ -336,6 +387,112 @@ export default function applicationStore(state, emitter) {
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
     });
+
+    state.projectBrowserColumnCount = computeProjectBrowserColumnCount({
+      availableWidth: window.innerWidth,
+    });
+  }
+
+  async function reloadProjectsFromStorage() {
+    state.projects = await projectStorageService.listProjects();
+
+    const projectBrowserTileList = createProjectBrowserTileList({
+      projects: state.projects,
+    });
+
+    state.selectedProjectBrowserIndex = clampSelectionIndex({
+      selectedIndex: state.selectedProjectBrowserIndex,
+      tileCount: projectBrowserTileList.length,
+    });
+  }
+
+  async function persistCurrentProjectState() {
+    if (!state.currentProjectId) {
+      return;
+    }
+
+    const updatedProjectMetadata = await projectStorageService.saveProject({
+      projectId: state.currentProjectId,
+      frames: state.frames,
+      title: state.currentProjectTitle,
+    });
+
+    state.currentProjectTitle = updatedProjectMetadata.title;
+    await reloadProjectsFromStorage();
+  }
+
+  async function openProjectInEditorById({ projectId }) {
+    const loadedProject = await projectStorageService.loadProject({ projectId });
+
+    state.currentProjectId = loadedProject.id;
+    state.currentProjectTitle = loadedProject.title;
+    state.frames = loadedProject.frames;
+    state.selectedTimelineItem = {
+      type: "gap",
+      index: state.frames.length,
+    };
+    state.timelineScrollOffsetInItemUnits = 0;
+    state.timelineScrollTargetOffsetInItemUnits = 0;
+    updateTimelineScrollTargetAndClampCurrentOffset();
+    state.appMode = "project-editor";
+
+    if (state.cameraStatus === "idle") {
+      scheduleAutomaticCameraStartup({ state, emitter });
+    }
+  }
+
+  async function createProjectAndOpenInEditor() {
+    const projectTitle = createDefaultProjectTitle({
+      projects: state.projects,
+    });
+
+    const createdProjectResult = await projectStorageService.createProject({
+      title: projectTitle,
+    });
+
+    await reloadProjectsFromStorage();
+
+    state.selectedProjectBrowserIndex = findBrowserSelectionIndexForProjectId({
+      projects: state.projects,
+      projectId: createdProjectResult.projectMetadata.id,
+    });
+
+    await openProjectInEditorById({
+      projectId: createdProjectResult.projectMetadata.id,
+    });
+  }
+
+  function moveProjectBrowserSelection(direction) {
+    const projectBrowserTileList = createProjectBrowserTileList({
+      projects: state.projects,
+    });
+
+    state.selectedProjectBrowserIndex = moveProjectBrowserSelectionByDirection({
+      selectedIndex: state.selectedProjectBrowserIndex,
+      tileCount: projectBrowserTileList.length,
+      columnCount: state.projectBrowserColumnCount,
+      direction,
+    });
+  }
+
+  async function activateSelectedProjectBrowserTile() {
+    const projectBrowserTileList = createProjectBrowserTileList({
+      projects: state.projects,
+    });
+    const selectedTile = projectBrowserTileList[state.selectedProjectBrowserIndex];
+
+    if (!selectedTile) {
+      return;
+    }
+
+    if (selectedTile.type === "new-project") {
+      await createProjectAndOpenInEditor();
+      return;
+    }
+
+    await openProjectInEditorById({
+      projectId: selectedTile.projectId,
+    });
   }
 
   async function captureAndInsertFrameRecord() {
@@ -398,6 +555,8 @@ export default function applicationStore(state, emitter) {
         console.error("Failed to clean up replaced frame assets:", replaceCleanupError);
       }
     }
+
+    await persistCurrentProjectState();
   }
 
   async function measureAsyncOperationDuration({ operationName, frameIdentifier, operation }) {
@@ -585,7 +744,10 @@ export default function applicationStore(state, emitter) {
     focusApplicationRootForKeyboardInput();
 
     await frameStorageService.initialize();
-    scheduleAutomaticCameraStartup({ state, emitter });
+    await projectStorageService.initialize();
+    await reloadProjectsFromStorage();
+    state.selectedProjectBrowserIndex = 0;
+    state.appMode = "project-browser";
     emitter.emit("render");
   });
 
@@ -611,8 +773,68 @@ export default function applicationStore(state, emitter) {
     emitter.emit("render");
   });
 
+  emitter.on("project-browser:move-selection-left", () => {
+    if (state.appMode !== "project-browser") {
+      return;
+    }
+
+    moveProjectBrowserSelection("left");
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:move-selection-right", () => {
+    if (state.appMode !== "project-browser") {
+      return;
+    }
+
+    moveProjectBrowserSelection("right");
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:move-selection-up", () => {
+    if (state.appMode !== "project-browser") {
+      return;
+    }
+
+    moveProjectBrowserSelection("up");
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:move-selection-down", () => {
+    if (state.appMode !== "project-browser") {
+      return;
+    }
+
+    moveProjectBrowserSelection("down");
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:activate-selected-tile", async () => {
+    if (state.appMode !== "project-browser") {
+      return;
+    }
+
+    await activateSelectedProjectBrowserTile();
+    emitter.emit("render");
+  });
+
+  emitter.on("project-editor:return-to-browser", async () => {
+    if (state.appMode !== "project-editor") {
+      return;
+    }
+
+    await persistCurrentProjectState();
+    await reloadProjectsFromStorage();
+    state.selectedProjectBrowserIndex = findBrowserSelectionIndexForProjectId({
+      projects: state.projects,
+      projectId: state.currentProjectId,
+    });
+    state.appMode = "project-browser";
+    emitter.emit("render");
+  });
+
   emitter.on("timeline:select-gap", (gapIndex) => {
-    if (state.isPlaying || state.isTimelapseCapturing) {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -623,7 +845,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("timeline:select-frame", (frameIndex) => {
-    if (state.isPlaying || state.isTimelapseCapturing) {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -633,8 +855,8 @@ export default function applicationStore(state, emitter) {
     emitter.emit("render");
   });
 
-  emitter.on("timeline:move-selected-frame-left", () => {
-    if (state.isPlaying || state.isTimelapseCapturing) {
+  emitter.on("timeline:move-selected-frame-left", async () => {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -652,11 +874,12 @@ export default function applicationStore(state, emitter) {
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
     updateTimelineScrollTargetAndClampCurrentOffset();
     animateTimelineScrollOffsetTowardsTargetIfNeeded();
+    await persistCurrentProjectState();
     emitter.emit("render");
   });
 
-  emitter.on("timeline:move-selected-frame-right", () => {
-    if (state.isPlaying || state.isTimelapseCapturing) {
+  emitter.on("timeline:move-selected-frame-right", async () => {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -674,11 +897,12 @@ export default function applicationStore(state, emitter) {
     state.selectedTimelineItem = movementResult.selectedTimelineItem;
     updateTimelineScrollTargetAndClampCurrentOffset();
     animateTimelineScrollOffsetTowardsTargetIfNeeded();
+    await persistCurrentProjectState();
     emitter.emit("render");
   });
 
   emitter.on("timeline:move-selection-left", () => {
-    if (state.isPlaying || state.isTimelapseCapturing) {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -699,7 +923,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("timeline:move-selection-right", () => {
-    if (state.isPlaying || state.isTimelapseCapturing) {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -720,7 +944,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("frames:capture", async () => {
-    if (state.cameraStatus !== "ready" || state.isPlaying || state.isTimelapseCapturing) {
+    if (state.appMode !== "project-editor" || state.cameraStatus !== "ready" || state.isPlaying || state.isTimelapseCapturing) {
       return;
     }
 
@@ -734,7 +958,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("timelapse:start", () => {
-    if (state.isTimelapseCapturing || state.cameraStatus !== "ready" || state.isPlaying) {
+    if (state.appMode !== "project-editor" || state.isTimelapseCapturing || state.cameraStatus !== "ready" || state.isPlaying) {
       return;
     }
 
@@ -758,7 +982,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("frames:delete-selected", async () => {
-    if (state.isPlaying || state.isTimelapseCapturing || !canDeleteSelectedFrame(state)) {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing || !canDeleteSelectedFrame(state)) {
       return;
     }
 
@@ -778,11 +1002,12 @@ export default function applicationStore(state, emitter) {
       console.error("Failed to clean up deleted frame assets:", deleteError);
     }
 
+    await persistCurrentProjectState();
     emitter.emit("render");
   });
 
   emitter.on("playback:start", () => {
-    if (state.isPlaying || state.isTimelapseCapturing || !canPlayFrames(state)) {
+    if (state.appMode !== "project-editor" || state.isPlaying || state.isTimelapseCapturing || !canPlayFrames(state)) {
       return;
     }
 

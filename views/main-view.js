@@ -1,8 +1,13 @@
 import previewPanel from "./preview-panel.js";
 import controlsPanel from "./controls-panel.js";
 import timelinePanel from "./timeline-panel.js";
+import projectBrowserView from "./project-browser.js";
 
 export default function mainView(state, emit) {
+  if (state.appMode === "project-browser") {
+    return projectBrowserView(state, emit);
+  }
+
   const applicationSurfaceLayout = state.appSurfaceLayout;
 
   return html`

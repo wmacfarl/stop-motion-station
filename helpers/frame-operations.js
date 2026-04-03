@@ -1,9 +1,15 @@
 export function createInitialApplicationState() {
   return {
+    appMode: "project-browser",
     cameraStatus: "idle",
     cameraErrorMessage: null,
     cameraStartupWaitingForUserGesture: false,
     frames: [],
+    projects: [],
+    selectedProjectBrowserIndex: 0,
+    projectBrowserColumnCount: 1,
+    currentProjectId: null,
+    currentProjectTitle: null,
     selectedTimelineItem: {
       type: "gap",
       index: 0,

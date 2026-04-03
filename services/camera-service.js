@@ -144,7 +144,7 @@ class CameraService {
       0.8,
     );
 
-    const timelineImageSource = URL.createObjectURL(timelineBlob);
+    const timelineImageSource = await blobToDataUrl(timelineBlob);
     const captureDurationMilliseconds = performance.now() - captureStartedAtMilliseconds;
 
     return {
@@ -189,6 +189,27 @@ function canvasToBlob(canvasElement, type, quality) {
 
       resolve(blob);
     }, type, quality);
+  });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const fileReader = new FileReader();
+
+    fileReader.onload = () => {
+      if (typeof fileReader.result === "string") {
+        resolve(fileReader.result);
+        return;
+      }
+
+      reject(new Error("Failed to convert blob to a data URL string."));
+    };
+
+    fileReader.onerror = () => {
+      reject(fileReader.error ?? new Error("Failed to read blob as data URL."));
+    };
+
+    fileReader.readAsDataURL(blob);
   });
 }
 
