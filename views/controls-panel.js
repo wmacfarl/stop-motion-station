@@ -29,6 +29,16 @@ export default function controlsPanel(state) {
           ${captureReadinessStatusMessage}
         </div>
       </section>
+      <section class="keyboard-controls-panel">
+        <div class="keyboard-controls-title">Keyboard controls</div>
+        <ul class="keyboard-controls-list">
+          <li>space for capture</li>
+          <li>up for play</li>
+          <li>down/delete/backspace for delete</li>
+          <li>esc/w for back to browser</li>
+          <li>arrows to navigate timeline</li>
+        </ul>
+      </section>
     </aside>
   `;
 }

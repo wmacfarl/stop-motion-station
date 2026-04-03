@@ -171,6 +171,35 @@ body {
   line-height: 1.4;
 }
 
+.keyboard-controls-panel {
+  width: 100%;
+  border: 1px solid #3b3b3b;
+  border-radius: 8px;
+  background: #202020;
+  padding: 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.keyboard-controls-title {
+  color: #f1f1f1;
+  font-size: clamp(14px, 2vh, 22px);
+  font-weight: 700;
+}
+
+.keyboard-controls-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #e3e3e3;
+  font-size: clamp(11px, 1.6vh, 16px);
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .timeline-panel {
   background: #181818;
   overflow: hidden;
