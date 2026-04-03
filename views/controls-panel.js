@@ -13,7 +13,7 @@ export default function controlsPanel(state) {
           ${automaticCaptureStatusMessage}
         </div>
         <div class="auto-capture-shortcut-hint">
-          Hold Up and Space at the same time to run auto-capture.
+          Press and release Up and Space together to start auto-capture. Press any other key to stop.
         </div>
       </section>
     </aside>

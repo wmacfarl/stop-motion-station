@@ -230,6 +230,7 @@ function attachGlobalKeyboardListener(state, emitter) {
 
   hasAttachedGlobalKeyboardListener = true;
   const currentlyPressedKeys = new Set();
+  let automaticCaptureShortcutWasPressed = false;
 
   function log(...args) {
     if (ENABLE_KEYBOARD_DEBUG_LOGGING) {
@@ -262,15 +263,8 @@ function attachGlobalKeyboardListener(state, emitter) {
       return;
     }
 
-    if (isHoldingPlayAndRecordShortcut && !state.isTimelapseCapturing) {
-      log("ACTION: start auto-capture from simultaneous play-and-record hold");
-      emitter.emit("timelapse:start");
-      return;
-    }
-
-    if (!isHoldingPlayAndRecordShortcut && state.isTimelapseCapturing) {
-      log("ACTION: stop auto-capture because play-and-record hold was released");
-      emitter.emit("timelapse:stop");
+    if (isHoldingPlayAndRecordShortcut) {
+      automaticCaptureShortcutWasPressed = true;
     }
   }
 
@@ -299,6 +293,11 @@ function attachGlobalKeyboardListener(state, emitter) {
       event.preventDefault();
       updateAutomaticCaptureShortcutState();
       return;
+    }
+
+    if (state.appMode === "project-editor" && state.isTimelapseCapturing) {
+      log("ACTION: stop auto-capture because another key was pressed");
+      emitter.emit("timelapse:stop");
     }
 
     if (state.appMode === "project-browser") {
@@ -401,8 +400,26 @@ function attachGlobalKeyboardListener(state, emitter) {
       return;
     }
 
-    if (isSpace || isArrowUp || state.isTimelapseCapturing) {
+    if (isSpace || isArrowUp) {
       updateAutomaticCaptureShortcutState();
+    }
+
+    const automaticCaptureShortcutIsFullyReleased = !currentlyPressedKeys.has("ArrowUp")
+      && !currentlyPressedKeys.has("Space");
+
+    if (
+      automaticCaptureShortcutWasPressed
+      && automaticCaptureShortcutIsFullyReleased
+      && !state.isTimelapseCapturing
+    ) {
+      log("ACTION: toggle auto-capture on after shortcut press-and-release");
+      automaticCaptureShortcutWasPressed = false;
+      emitter.emit("timelapse:start");
+      return;
+    }
+
+    if (automaticCaptureShortcutIsFullyReleased) {
+      automaticCaptureShortcutWasPressed = false;
     }
   }
 
