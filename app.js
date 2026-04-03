@@ -625,46 +625,46 @@ export default function applicationStore(state, emitter) {
     });
   }
 
+  function isAutomaticCaptureSessionActive(automaticCaptureSessionId) {
+    return state.isTimelapseCapturing && automaticCaptureSessionId === automaticCaptureSessionIdentifier;
+  }
+
   async function runAutomaticCaptureCycleForSession(automaticCaptureSessionId) {
-    if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
+    if (!isAutomaticCaptureSessionActive(automaticCaptureSessionId)) {
       return;
     }
 
-    for (
-      let secondsRemainingInCountdown = THREE_SECOND_COUNTDOWN_SECONDS;
-      secondsRemainingInCountdown >= 1;
-      secondsRemainingInCountdown -= 1
-    ) {
-      if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
+    while (isAutomaticCaptureSessionActive(automaticCaptureSessionId)) {
+      for (
+        let secondsRemainingInCountdown = THREE_SECOND_COUNTDOWN_SECONDS;
+        secondsRemainingInCountdown >= 1;
+        secondsRemainingInCountdown -= 1
+      ) {
+        if (!isAutomaticCaptureSessionActive(automaticCaptureSessionId)) {
+          return;
+        }
+
+        state.autoCaptureCountdownSecondsRemaining = secondsRemainingInCountdown;
+        playSoundEffect(automaticCaptureMetronomeSound);
+        emitter.emit("render");
+        await waitForMillisecondsBeforeNextAutomaticCapture(1000);
+      }
+
+      if (!isAutomaticCaptureSessionActive(automaticCaptureSessionId)) {
         return;
       }
 
-      state.autoCaptureCountdownSecondsRemaining = secondsRemainingInCountdown;
-      playSoundEffect(automaticCaptureMetronomeSound);
-      emitter.emit("render");
-      await waitForMillisecondsBeforeNextAutomaticCapture(1000);
+      timelapseCaptureInProgress = true;
+
+      try {
+        await captureAndInsertFrameRecord();
+      } catch (captureError) {
+        console.error("Failed to capture timelapse frame:", captureError);
+      } finally {
+        timelapseCaptureInProgress = false;
+        emitter.emit("render");
+      }
     }
-
-    if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
-      return;
-    }
-
-    timelapseCaptureInProgress = true;
-
-    try {
-      await captureAndInsertFrameRecord();
-    } catch (captureError) {
-      console.error("Failed to capture timelapse frame:", captureError);
-    } finally {
-      timelapseCaptureInProgress = false;
-      emitter.emit("render");
-    }
-
-    if (!state.isTimelapseCapturing || automaticCaptureSessionId !== automaticCaptureSessionIdentifier) {
-      return;
-    }
-
-    runAutomaticCaptureCycleForSession(automaticCaptureSessionId);
   }
 
   function updateVisibleTimelineScrollTargetFromSelection() {
@@ -964,7 +964,7 @@ export default function applicationStore(state, emitter) {
 
     state.isTimelapseCapturing = true;
     automaticCaptureSessionIdentifier += 1;
-    state.autoCaptureCountdownSecondsRemaining = THREE_SECOND_COUNTDOWN_SECONDS;
+    state.autoCaptureCountdownSecondsRemaining = null;
     runAutomaticCaptureCycleForSession(automaticCaptureSessionIdentifier);
 
     emitter.emit("render");
