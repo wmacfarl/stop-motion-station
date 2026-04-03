@@ -229,6 +229,7 @@ function attachGlobalKeyboardListener(state, emitter) {
   }
 
   hasAttachedGlobalKeyboardListener = true;
+  const currentlyPressedKeys = new Set();
 
   function log(...args) {
     if (ENABLE_KEYBOARD_DEBUG_LOGGING) {
@@ -236,30 +237,69 @@ function attachGlobalKeyboardListener(state, emitter) {
     }
   }
 
+  function normalizeKeyboardInput(event) {
+    const key = event.key;
+    const code = event.code;
+    const isSpace =
+      code === "Space"
+      || key === " "
+      || key === "Spacebar"
+      || key === "Space";
+
+    return {
+      key,
+      code,
+      isSpace,
+      isArrowUp: key === "ArrowUp",
+    };
+  }
+
+  function updateAutomaticCaptureShortcutState() {
+    const isHoldingPlayAndRecordShortcut = currentlyPressedKeys.has("ArrowUp")
+      && currentlyPressedKeys.has("Space");
+
+    if (state.appMode !== "project-editor") {
+      return;
+    }
+
+    if (isHoldingPlayAndRecordShortcut && !state.isTimelapseCapturing) {
+      log("ACTION: start auto-capture from simultaneous play-and-record hold");
+      emitter.emit("timelapse:start");
+      return;
+    }
+
+    if (!isHoldingPlayAndRecordShortcut && state.isTimelapseCapturing) {
+      log("ACTION: stop auto-capture because play-and-record hold was released");
+      emitter.emit("timelapse:stop");
+    }
+  }
+
   function handleKeyboardShortcuts(event) {
+    const normalizedKeyboardInput = normalizeKeyboardInput(event);
+    const { key, code, isSpace, isArrowUp } = normalizedKeyboardInput;
+
+    if (isSpace) {
+      currentlyPressedKeys.add("Space");
+    } else {
+      currentlyPressedKeys.add(key);
+    }
+
     log("keydown event received", {
-      key: event.key,
-      code: event.code,
+      key,
+      code,
       repeat: event.repeat,
       activeElement: document.activeElement?.tagName,
       appMode: state.appMode,
     });
 
-    if (state.isTimelapseCapturing) {
-      log("ACTION: disable auto-capture because a key was pressed");
+    const isHoldingPlayAndRecordShortcut = currentlyPressedKeys.has("ArrowUp")
+      && currentlyPressedKeys.has("Space");
+
+    if (isHoldingPlayAndRecordShortcut && state.appMode === "project-editor") {
       event.preventDefault();
-      emitter.emit("timelapse:stop");
+      updateAutomaticCaptureShortcutState();
       return;
     }
-
-    const key = event.key;
-    const code = event.code;
-
-    const isSpace =
-      code === "Space" ||
-      key === " " ||
-      key === "Spacebar" ||
-      key === "Space";
 
     if (state.appMode === "project-browser") {
       if (key === "ArrowLeft") {
@@ -325,7 +365,7 @@ function attachGlobalKeyboardListener(state, emitter) {
       return;
     }
 
-    if (key === "ArrowUp") {
+    if (isArrowUp) {
       log("ACTION: play");
       event.preventDefault();
       emitter.emit("playback:start");
@@ -347,11 +387,34 @@ function attachGlobalKeyboardListener(state, emitter) {
     log("UNHANDLED KEY", key);
   }
 
+  function handleKeyboardShortcutRelease(event) {
+    const normalizedKeyboardInput = normalizeKeyboardInput(event);
+    const { key, isSpace, isArrowUp } = normalizedKeyboardInput;
+
+    if (isSpace) {
+      currentlyPressedKeys.delete("Space");
+    } else {
+      currentlyPressedKeys.delete(key);
+    }
+
+    if (state.appMode !== "project-editor") {
+      return;
+    }
+
+    if (isSpace || isArrowUp || state.isTimelapseCapturing) {
+      updateAutomaticCaptureShortcutState();
+    }
+  }
+
   log("Attaching keyboard listeners");
 
   // Attach to document only once to avoid duplicate key handling.
   document.addEventListener("keydown", handleKeyboardShortcuts, {
     passive: false,
+    capture: true,
+  });
+  document.addEventListener("keyup", handleKeyboardShortcutRelease, {
+    passive: true,
     capture: true,
   });
 
