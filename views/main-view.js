@@ -21,7 +21,7 @@ export default function mainView(state, emit) {
       >
         <div class="application-top-row">
           ${previewPanel(state, emit)}
-          ${controlsPanel(state, emit)}
+          ${controlsPanel(state)}
         </div>
 
         ${timelinePanel(state, emit)}
