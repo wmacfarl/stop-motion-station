@@ -8,12 +8,15 @@ export function computeProjectBrowserColumnCount({ availableWidth }) {
   return Math.max(1, Math.floor(usableWidth / PROJECT_TILE_MINIMUM_WIDTH_PIXELS));
 }
 
-export default function projectBrowserView(state) {
+export default function projectBrowserView(state, emit) {
   const projectBrowserTileList = createProjectBrowserTileList({ projects: state.projects });
   const selectedProjectBrowserIndex = Math.min(
     state.selectedProjectBrowserIndex,
     Math.max(0, projectBrowserTileList.length - 1),
   );
+  const modalProjectMetadata = state.projectBrowserModalProjectId
+    ? state.projects.find((projectMetadata) => projectMetadata.id === state.projectBrowserModalProjectId) ?? null
+    : null;
 
   return html`
     <div id="app" class="application-root project-browser-root">
@@ -31,10 +34,14 @@ export default function projectBrowserView(state) {
         >
           ${projectBrowserTileList.map((tileViewModel, tileIndex) => {
             const isSelectedTile = tileIndex === selectedProjectBrowserIndex;
+            const selectProjectBrowserTile = () => emit("project-browser:select-tile", tileIndex);
 
             if (tileViewModel.type === "new-project") {
               return html`
-                <article class=${`project-browser-tile new-project-tile ${isSelectedTile ? "is-selected" : ""}`}>
+                <article
+                  class=${`project-browser-tile new-project-tile ${isSelectedTile ? "is-selected" : ""}`}
+                  onclick=${selectProjectBrowserTile}
+                >
                   <div class="project-browser-thumbnail-placeholder project-browser-thumbnail-plus">+</div>
                   <h2 class="project-browser-tile-title">${tileViewModel.title}</h2>
                 </article>
@@ -42,7 +49,13 @@ export default function projectBrowserView(state) {
             }
 
             return html`
-              <article class=${`project-browser-tile ${isSelectedTile ? "is-selected" : ""}`}>
+              <article
+                class=${`project-browser-tile ${isSelectedTile ? "is-selected" : ""}`}
+                onclick=${() => {
+                  emit("project-browser:select-tile", tileIndex);
+                  emit("project-browser:activate-selected-tile");
+                }}
+              >
                 ${tileViewModel.thumbnailImageSource
                   ? html`
                     <img
@@ -60,6 +73,56 @@ export default function projectBrowserView(state) {
           })}
         </div>
       </section>
+
+      ${modalProjectMetadata
+        ? html`
+          <div
+            class="project-browser-modal-backdrop"
+            onclick=${(clickEvent) => {
+              clickEvent.stopPropagation();
+            }}
+          >
+            <section class="project-browser-modal-dialog">
+              <h2 class="project-browser-modal-title">${modalProjectMetadata.title}</h2>
+              ${modalProjectMetadata.thumbnailImageSource
+                ? html`
+                  <img
+                    class="project-browser-modal-thumbnail-image"
+                    src=${modalProjectMetadata.thumbnailImageSource}
+                    alt=${`Thumbnail for ${modalProjectMetadata.title}`}
+                  />
+                `
+                : html`
+                  <div class="project-browser-modal-thumbnail-placeholder">No frames yet</div>
+                `}
+
+              <div class="project-browser-modal-button-row">
+                <button
+                  type="button"
+                  class="project-browser-modal-button play-button"
+                  onclick=${() => emit("project-browser:play-modal-project")}
+                >
+                  Play
+                </button>
+                <button
+                  type="button"
+                  class="project-browser-modal-button delete-button"
+                  onclick=${() => emit("project-browser:delete-modal-project")}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  class="project-browser-modal-button back-button"
+                  onclick=${() => emit("project-browser:close-project-modal")}
+                >
+                  Back to Browser
+                </button>
+              </div>
+            </section>
+          </div>
+        `
+        : null}
     </div>
   `;
 }

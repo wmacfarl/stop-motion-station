@@ -165,6 +165,28 @@ class ProjectStorageService {
     return projectMetadataList[projectMetadataIndex];
   }
 
+  async deleteProject({ projectId }) {
+    await this.initializeIfNeeded();
+
+    const projectMetadataList = await this.readProjectMetadataList();
+    const updatedProjectMetadataList = projectMetadataList.filter(
+      (projectMetadata) => projectMetadata.id !== projectId,
+    );
+
+    await this.writeProjectMetadataList(updatedProjectMetadataList);
+
+    const projectsDirectoryHandle = await this.getProjectsDirectoryHandle();
+    const contentFileName = getProjectContentFileName(projectId);
+
+    try {
+      await projectsDirectoryHandle.removeEntry(contentFileName);
+    } catch (projectContentRemoveError) {
+      if (projectContentRemoveError?.name !== "NotFoundError") {
+        throw projectContentRemoveError;
+      }
+    }
+  }
+
   async initializeIfNeeded() {
     if (this.hasInitializedStorage) {
       return;

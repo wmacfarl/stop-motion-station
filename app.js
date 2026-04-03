@@ -301,6 +301,14 @@ function attachGlobalKeyboardListener(state, emitter) {
     }
 
     if (state.appMode === "project-browser") {
+      const shouldCloseProjectBrowserModal = key === "Escape" || key === "w" || key === "W";
+
+      if (shouldCloseProjectBrowserModal && state.projectBrowserModalProjectId) {
+        event.preventDefault();
+        emitter.emit("project-browser:close-project-modal");
+        return;
+      }
+
       if (key === "ArrowLeft") {
         event.preventDefault();
         emitter.emit("project-browser:move-selection-left");
@@ -580,6 +588,8 @@ export default function applicationStore(state, emitter) {
       columnCount: state.projectBrowserColumnCount,
       direction,
     });
+
+    state.projectBrowserModalProjectId = null;
   }
 
   async function activateSelectedProjectBrowserTile() {
@@ -597,8 +607,70 @@ export default function applicationStore(state, emitter) {
       return;
     }
 
+    state.projectBrowserModalProjectId = selectedTile.projectId;
+  }
+
+  function getProjectMetadataForProjectBrowserModal() {
+    if (!state.projectBrowserModalProjectId) {
+      return null;
+    }
+
+    return state.projects.find(
+      (projectMetadata) => projectMetadata.id === state.projectBrowserModalProjectId,
+    ) ?? null;
+  }
+
+  async function openProjectBrowserModalProjectInEditor() {
+    const selectedProjectMetadata = getProjectMetadataForProjectBrowserModal();
+
+    if (!selectedProjectMetadata) {
+      state.projectBrowserModalProjectId = null;
+      return;
+    }
+
+    state.selectedProjectBrowserIndex = findBrowserSelectionIndexForProjectId({
+      projects: state.projects,
+      projectId: selectedProjectMetadata.id,
+    });
+    state.projectBrowserModalProjectId = null;
+
     await openProjectInEditorById({
-      projectId: selectedTile.projectId,
+      projectId: selectedProjectMetadata.id,
+    });
+  }
+
+  async function deleteProjectInProjectBrowserModal() {
+    const selectedProjectMetadata = getProjectMetadataForProjectBrowserModal();
+
+    if (!selectedProjectMetadata) {
+      state.projectBrowserModalProjectId = null;
+      return;
+    }
+
+    const projectToDelete = await projectStorageService.loadProject({
+      projectId: selectedProjectMetadata.id,
+    });
+
+    for (const frameRecord of projectToDelete.frames) {
+      if (frameRecord?.originalStorageKey) {
+        try {
+          await frameStorageService.deleteOriginalFrame({
+            storageKey: frameRecord.originalStorageKey,
+          });
+        } catch (originalFrameDeleteError) {
+          console.warn("Could not delete a project frame original asset:", originalFrameDeleteError);
+        }
+      }
+    }
+
+    await projectStorageService.deleteProject({
+      projectId: selectedProjectMetadata.id,
+    });
+    await reloadProjectsFromStorage();
+    state.projectBrowserModalProjectId = null;
+    state.selectedProjectBrowserIndex = clampSelectionIndex({
+      selectedIndex: state.selectedProjectBrowserIndex,
+      tileCount: createProjectBrowserTileList({ projects: state.projects }).length,
     });
   }
 
@@ -894,6 +966,7 @@ export default function applicationStore(state, emitter) {
     await projectStorageService.initialize();
     await reloadProjectsFromStorage();
     state.selectedProjectBrowserIndex = 0;
+    state.projectBrowserModalProjectId = null;
     state.appMode = "project-browser";
     emitter.emit("render");
   });
@@ -921,7 +994,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("project-browser:move-selection-left", () => {
-    if (state.appMode !== "project-browser") {
+    if (state.appMode !== "project-browser" || state.projectBrowserModalProjectId) {
       return;
     }
 
@@ -930,7 +1003,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("project-browser:move-selection-right", () => {
-    if (state.appMode !== "project-browser") {
+    if (state.appMode !== "project-browser" || state.projectBrowserModalProjectId) {
       return;
     }
 
@@ -939,7 +1012,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("project-browser:move-selection-up", () => {
-    if (state.appMode !== "project-browser") {
+    if (state.appMode !== "project-browser" || state.projectBrowserModalProjectId) {
       return;
     }
 
@@ -948,7 +1021,7 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("project-browser:move-selection-down", () => {
-    if (state.appMode !== "project-browser") {
+    if (state.appMode !== "project-browser" || state.projectBrowserModalProjectId) {
       return;
     }
 
@@ -957,11 +1030,54 @@ export default function applicationStore(state, emitter) {
   });
 
   emitter.on("project-browser:activate-selected-tile", async () => {
-    if (state.appMode !== "project-browser") {
+    if (state.appMode !== "project-browser" || state.projectBrowserModalProjectId) {
       return;
     }
 
     await activateSelectedProjectBrowserTile();
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:select-tile", (tileIndex) => {
+    if (state.appMode !== "project-browser" || state.projectBrowserModalProjectId) {
+      return;
+    }
+
+    const projectBrowserTileList = createProjectBrowserTileList({
+      projects: state.projects,
+    });
+
+    state.selectedProjectBrowserIndex = clampSelectionIndex({
+      selectedIndex: tileIndex,
+      tileCount: projectBrowserTileList.length,
+    });
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:close-project-modal", () => {
+    if (state.appMode !== "project-browser") {
+      return;
+    }
+
+    state.projectBrowserModalProjectId = null;
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:play-modal-project", async () => {
+    if (state.appMode !== "project-browser" || !state.projectBrowserModalProjectId) {
+      return;
+    }
+
+    await openProjectBrowserModalProjectInEditor();
+    emitter.emit("render");
+  });
+
+  emitter.on("project-browser:delete-modal-project", async () => {
+    if (state.appMode !== "project-browser" || !state.projectBrowserModalProjectId) {
+      return;
+    }
+
+    await deleteProjectInProjectBrowserModal();
     emitter.emit("render");
   });
 
@@ -976,6 +1092,7 @@ export default function applicationStore(state, emitter) {
       projects: state.projects,
       projectId: state.currentProjectId,
     });
+    state.projectBrowserModalProjectId = null;
     state.appMode = "project-browser";
     emitter.emit("render");
   });

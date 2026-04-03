@@ -314,6 +314,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  cursor: pointer;
 }
 
 .project-browser-tile.is-selected {
@@ -350,4 +351,75 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.project-browser-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.project-browser-modal-dialog {
+  width: min(640px, 92vw);
+  background: #1b1b1b;
+  border: 1px solid #4a4a4a;
+  border-radius: 14px;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-browser-modal-title {
+  margin: 0;
+  color: #f8f8f8;
+  font-size: clamp(24px, 3vh, 34px);
+}
+
+.project-browser-modal-thumbnail-image,
+.project-browser-modal-thumbnail-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #050505;
+}
+
+.project-browser-modal-thumbnail-placeholder {
+  color: #8d8d8d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.project-browser-modal-button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.project-browser-modal-button {
+  appearance: none;
+  border: 1px solid #4f4f4f;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #f5f5f5;
+  padding: 10px 14px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.project-browser-modal-button.play-button {
+  background: #225f2c;
+  border-color: #3f8f4f;
+}
+
+.project-browser-modal-button.delete-button {
+  background: #672626;
+  border-color: #9c3f3f;
 }
