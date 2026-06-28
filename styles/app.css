@@ -154,6 +154,30 @@ body {
   font-weight: 700;
 }
 
+.sync-indicator {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  z-index: 1000;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.sync-indicator--synced {
+  background: #2ecc71;
+}
+
+.sync-indicator--syncing {
+  background: #f1c40f;
+}
+
+.sync-indicator--offline {
+  background: #3498db;
+}
+
 .capture-readiness-state {
   font-size: clamp(12px, 1.7vh, 17px);
   font-weight: 700;

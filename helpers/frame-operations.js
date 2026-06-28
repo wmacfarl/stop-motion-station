@@ -41,6 +41,20 @@ export function createInitialApplicationState() {
     autoCaptureCountdownSecondsRemaining: null,
     isCaptureOperationInProgress: false,
     captureReadinessStatus: "capture-ready",
+    syncStatus: {
+      enabled: false,
+      state: "disabled",
+      message: "Backend sync is not configured.",
+      pendingProjectCount: 0,
+      lastSyncedAtMilliseconds: null,
+      lastErrorMessage: null,
+    },
+    lastUiActivityAtMilliseconds: 0,
+    isOnline: true,
+    videoExportStatus: {
+      state: "idle",
+      message: "Video export idle.",
+    },
     appSurfaceLayout: {
       width: 0,
       height: 0,
