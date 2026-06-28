@@ -868,6 +868,7 @@ export default function applicationStore(state, emitter) {
   let pendingLayoutRefreshAnimationFrameIdentifier = null;
   let scheduledProjectPersistenceTimeoutIdentifier = null;
   let latestScheduledProjectPersistenceSnapshot = null;
+  let projectThumbnailHydrationSequence = 0;
   const thumbnailImageSourceCacheByStorageKey = new Map();
   const playbackImageSourceCacheByStorageKey = new Map();
 
@@ -1037,10 +1038,12 @@ export default function applicationStore(state, emitter) {
     state.frames = await hydrateFramesForPlayback(state.frames);
   }
 
-  async function reloadProjectsFromStorage() {
-    state.projects = await hydrateProjectThumbnailImageSourcesFromStorage(
-      await projectStorageService.listProjects(),
-    );
+  async function reloadProjectsFromStorage({ recoverFromContentFiles = false } = {}) {
+    const projectMetadataList = await projectStorageService.listProjects({
+      recoverFromContentFiles,
+    });
+
+    state.projects = projectMetadataList;
 
     const projectBrowserTileList = createProjectBrowserTileList({
       projects: state.projects,
@@ -1050,6 +1053,30 @@ export default function applicationStore(state, emitter) {
       selectedIndex: state.selectedProjectBrowserIndex,
       tileCount: projectBrowserTileList.length,
     });
+
+    hydrateProjectThumbnailImageSourcesInBackground(projectMetadataList);
+  }
+
+  function hydrateProjectThumbnailImageSourcesInBackground(projectMetadataList) {
+    projectThumbnailHydrationSequence += 1;
+    const hydrationSequence = projectThumbnailHydrationSequence;
+
+    hydrateProjectThumbnailImageSourcesFromStorage(projectMetadataList)
+      .then((hydratedProjectMetadataList) => {
+        if (hydrationSequence !== projectThumbnailHydrationSequence) {
+          return;
+        }
+
+        state.projects = hydratedProjectMetadataList;
+        state.selectedProjectBrowserIndex = clampSelectionIndex({
+          selectedIndex: state.selectedProjectBrowserIndex,
+          tileCount: createProjectBrowserTileList({ projects: state.projects }).length,
+        });
+        emitter.emit("render");
+      })
+      .catch((thumbnailHydrationError) => {
+        console.warn("Could not hydrate project thumbnails:", thumbnailHydrationError);
+      });
   }
 
   async function persistCurrentProjectState() {
@@ -1957,7 +1984,9 @@ export default function applicationStore(state, emitter) {
 
     await frameStorageService.initialize();
     await projectStorageService.initialize();
-    await reloadProjectsFromStorage();
+    await reloadProjectsFromStorage({
+      recoverFromContentFiles: true,
+    });
     state.selectedProjectBrowserIndex = 0;
     state.projectBrowserModalProjectId = null;
     state.projectBrowserModalSelectedActionIndex = 0;

@@ -49,11 +49,40 @@ class ProjectStorageService {
     }
   }
 
-  async listProjects() {
+  async listProjects({ recoverFromContentFiles = false } = {}) {
     const projectMetadataList = await this.readProjectMetadataList();
-    return [...projectMetadataList].sort(
+    const resolvedProjectMetadataList = recoverFromContentFiles
+      ? await this.recoverProjectMetadataListFromContentFiles(projectMetadataList)
+      : projectMetadataList;
+
+    return [...resolvedProjectMetadataList].sort(
       (firstProject, secondProject) => secondProject.updatedAtMilliseconds - firstProject.updatedAtMilliseconds,
     );
+  }
+
+  async recoverProjectMetadataListFromContentFiles(projectMetadataList) {
+    const recoveredProjectMetadataList = [...projectMetadataList];
+    const knownProjectIds = new Set(
+      recoveredProjectMetadataList.map((projectMetadata) => projectMetadata.id),
+    );
+    const projectContentMetadataList = await this.readProjectContentMetadataList();
+    let recoveredMissingProjectMetadata = false;
+
+    for (const projectContentMetadata of projectContentMetadataList) {
+      if (knownProjectIds.has(projectContentMetadata.id)) {
+        continue;
+      }
+
+      recoveredProjectMetadataList.push(projectContentMetadata);
+      knownProjectIds.add(projectContentMetadata.id);
+      recoveredMissingProjectMetadata = true;
+    }
+
+    if (recoveredMissingProjectMetadata) {
+      await this.writeProjectMetadataList(recoveredProjectMetadataList);
+    }
+
+    return recoveredProjectMetadataList;
   }
 
   async createProject({ title }) {
@@ -261,6 +290,45 @@ class ProjectStorageService {
     };
   }
 
+  async readProjectContentMetadataList() {
+    const projectsDirectoryHandle = await this.getProjectsDirectoryHandle();
+
+    if (typeof projectsDirectoryHandle.entries !== "function") {
+      return [];
+    }
+
+    const projectContentMetadataList = [];
+
+    for await (const [entryName, entryHandle] of projectsDirectoryHandle.entries()) {
+      if (
+        entryHandle.kind !== "file"
+        || entryName === PROJECT_METADATA_FILE_NAME
+        || !entryName.endsWith(".json")
+      ) {
+        continue;
+      }
+
+      try {
+        const projectContentFile = await entryHandle.getFile();
+        const projectContentText = await projectContentFile.text();
+        const projectContentRecord = projectContentText.trim()
+          ? JSON.parse(projectContentText)
+          : {};
+        const projectId = entryName.slice(0, -".json".length);
+
+        projectContentMetadataList.push(createProjectMetadataRecordFromContentRecord({
+          projectId,
+          projectContentRecord,
+          updatedAtMilliseconds: projectContentFile.lastModified || Date.now(),
+        }));
+      } catch (projectContentReadError) {
+        console.warn("Could not recover project metadata from content file:", entryName, projectContentReadError);
+      }
+    }
+
+    return projectContentMetadataList;
+  }
+
   async writeProjectContentRecord({ projectId, projectContentRecord }) {
     const projectsDirectoryHandle = await this.getProjectsDirectoryHandle();
     const contentFileName = getProjectContentFileName(projectId);
@@ -306,6 +374,27 @@ function extractProjectThumbnailRecordFromFrames(frames) {
   return {
     thumbnailImageSource: lastFrameRecord?.timelineImageSource ?? null,
     thumbnailStorageKey: null,
+  };
+}
+
+export function createProjectMetadataRecordFromContentRecord({
+  projectId,
+  projectContentRecord,
+  updatedAtMilliseconds,
+}) {
+  const frames = Array.isArray(projectContentRecord?.frames)
+    ? projectContentRecord.frames
+    : [];
+  const projectThumbnailRecord = extractProjectThumbnailRecordFromFrames(frames);
+  const safeUpdatedAtMilliseconds = updatedAtMilliseconds || Date.now();
+
+  return {
+    id: projectId,
+    title: projectContentRecord?.title || "Untitled Project",
+    createdAtMilliseconds: projectContentRecord?.createdAtMilliseconds || safeUpdatedAtMilliseconds,
+    updatedAtMilliseconds: safeUpdatedAtMilliseconds,
+    thumbnailImageSource: projectThumbnailRecord.thumbnailImageSource,
+    thumbnailStorageKey: projectThumbnailRecord.thumbnailStorageKey,
   };
 }
 
