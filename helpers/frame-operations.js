@@ -31,6 +31,7 @@ export function createInitialApplicationState() {
     },
     timelineScrollOffsetInItemUnits: 0,
     timelineScrollTargetOffsetInItemUnits: 0,
+    timelineScrollShouldAnimate: false,
     visibleTimelineItemCount: 9,
     isPlaying: false,
     playbackFrameIndex: null,
@@ -127,7 +128,6 @@ export function resolveTimelineScrollUpdate({
   currentTimelineScrollOffsetInItemUnits,
   visibleTimelineItemCount,
   frameCount,
-  snapToTarget = false,
 }) {
   const timelineScrollTargetOffsetInItemUnits = ensureTimelineSelectionIsVisible({
     selectedTimelineItem,
@@ -135,20 +135,16 @@ export function resolveTimelineScrollUpdate({
     visibleTimelineItemCount,
     frameCount,
   });
-  const maximumTimelineScrollOffset = getMaximumTimelineScrollOffset({
-    frameCount,
-    visibleTimelineItemCount,
-  });
-  const clampedTimelineScrollOffsetInItemUnits = Math.min(
-    maximumTimelineScrollOffset,
-    Math.max(0, currentTimelineScrollOffsetInItemUnits),
+  const scrollDistanceInItemUnits = Math.abs(
+    timelineScrollTargetOffsetInItemUnits - currentTimelineScrollOffsetInItemUnits,
   );
 
   return {
     timelineScrollTargetOffsetInItemUnits,
-    timelineScrollOffsetInItemUnits: snapToTarget
-      ? timelineScrollTargetOffsetInItemUnits
-      : clampedTimelineScrollOffsetInItemUnits,
+    timelineScrollOffsetInItemUnits: timelineScrollTargetOffsetInItemUnits,
+    timelineScrollShouldAnimate:
+      scrollDistanceInItemUnits > 0
+      && scrollDistanceInItemUnits <= Math.max(1, visibleTimelineItemCount),
   };
 }
 
