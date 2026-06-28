@@ -93,11 +93,29 @@ function isCapturePerformanceLoggingEnabled() {
   }
 }
 
+function syncCapturePerformanceLoggingPreferenceFromUrl() {
+  try {
+    const capturePerformanceLoggingPreference = new URLSearchParams(
+      globalThis.location?.search ?? "",
+    ).get("capturePerf");
+
+    if (capturePerformanceLoggingPreference === "1" || capturePerformanceLoggingPreference === "true") {
+      globalThis.localStorage?.setItem(CAPTURE_PERFORMANCE_LOGGING_STORAGE_KEY, "true");
+    } else if (capturePerformanceLoggingPreference === "0" || capturePerformanceLoggingPreference === "false") {
+      globalThis.localStorage?.removeItem(CAPTURE_PERFORMANCE_LOGGING_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage access failures so private browsing or locked-down WebViews still run.
+  }
+}
+
 function logCapturePerformance(...args) {
   if (isCapturePerformanceLoggingEnabled()) {
     console.info(...args);
   }
 }
+
+syncCapturePerformanceLoggingPreferenceFromUrl();
 
 async function tryStartCameraPreview({ state, emitter, reason }) {
   if (state.cameraStatus === "starting" || state.cameraStatus === "ready") {
