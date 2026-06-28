@@ -12,6 +12,7 @@ import {
   insertCapturedFrameAtCurrentSelection,
   moveSelectedFrameByOffset,
   moveTimelineSelectionByOffset,
+  resolveTimelineScrollUpdate,
 } from "../helpers/frame-operations.js";
 import {
   computeRenderedTimelineRange,
@@ -180,4 +181,35 @@ test("ensureTimelineSelectionIsVisible keeps the timeline end at the right edge 
   });
 
   assert.equal(Math.round(scrollOffset), 26);
+});
+
+test("resolveTimelineScrollUpdate snaps capture-time scrolling after the strip starts moving", () => {
+  const scrollUpdate = resolveTimelineScrollUpdate({
+    selectedTimelineItem: { type: "gap", index: 8 },
+    currentTimelineScrollTargetOffsetInItemUnits: 0,
+    currentTimelineScrollOffsetInItemUnits: 0,
+    visibleTimelineItemCount: 9,
+    frameCount: 8,
+    snapToTarget: true,
+  });
+
+  assert.deepEqual(scrollUpdate, {
+    timelineScrollTargetOffsetInItemUnits: 8,
+    timelineScrollOffsetInItemUnits: 8,
+  });
+});
+
+test("resolveTimelineScrollUpdate keeps normal navigation scroll animatable", () => {
+  const scrollUpdate = resolveTimelineScrollUpdate({
+    selectedTimelineItem: { type: "gap", index: 8 },
+    currentTimelineScrollTargetOffsetInItemUnits: 0,
+    currentTimelineScrollOffsetInItemUnits: 0,
+    visibleTimelineItemCount: 9,
+    frameCount: 8,
+  });
+
+  assert.deepEqual(scrollUpdate, {
+    timelineScrollTargetOffsetInItemUnits: 8,
+    timelineScrollOffsetInItemUnits: 0,
+  });
 });

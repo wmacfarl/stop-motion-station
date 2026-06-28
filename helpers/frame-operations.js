@@ -82,6 +82,19 @@ function getSelectionPositionOnTimeline(selectedTimelineItem) {
     : (selectedTimelineItem.index * 2) + 1;
 }
 
+function getMaximumTimelineScrollOffset({
+  frameCount,
+  visibleTimelineItemCount,
+}) {
+  const safeVisibleTimelineItemCount = Math.max(1, visibleTimelineItemCount);
+  const maximumTimelinePosition = frameCount * 2;
+
+  return Math.max(
+    0,
+    (maximumTimelinePosition + 1) - safeVisibleTimelineItemCount,
+  );
+}
+
 export function ensureTimelineSelectionIsVisible({
   selectedTimelineItem,
   currentTimelineScrollOffsetInItemUnits,
@@ -90,11 +103,10 @@ export function ensureTimelineSelectionIsVisible({
 }) {
   const selectedTimelinePosition = getSelectionPositionOnTimeline(selectedTimelineItem);
   const safeVisibleTimelineItemCount = Math.max(1, visibleTimelineItemCount);
-  const maximumTimelinePosition = frameCount * 2;
-  const maximumTimelineScrollOffset = Math.max(
-    0,
-    (maximumTimelinePosition + 1) - safeVisibleTimelineItemCount,
-  );
+  const maximumTimelineScrollOffset = getMaximumTimelineScrollOffset({
+    frameCount,
+    visibleTimelineItemCount: safeVisibleTimelineItemCount,
+  });
   const currentVisibleTimelineStart = Math.max(0, currentTimelineScrollOffsetInItemUnits);
   const currentVisibleTimelineEnd = currentVisibleTimelineStart + safeVisibleTimelineItemCount - 1;
 
@@ -107,6 +119,37 @@ export function ensureTimelineSelectionIsVisible({
   }
 
   return Math.min(maximumTimelineScrollOffset, Math.max(0, nextTimelineScrollOffset));
+}
+
+export function resolveTimelineScrollUpdate({
+  selectedTimelineItem,
+  currentTimelineScrollTargetOffsetInItemUnits,
+  currentTimelineScrollOffsetInItemUnits,
+  visibleTimelineItemCount,
+  frameCount,
+  snapToTarget = false,
+}) {
+  const timelineScrollTargetOffsetInItemUnits = ensureTimelineSelectionIsVisible({
+    selectedTimelineItem,
+    currentTimelineScrollOffsetInItemUnits: currentTimelineScrollTargetOffsetInItemUnits,
+    visibleTimelineItemCount,
+    frameCount,
+  });
+  const maximumTimelineScrollOffset = getMaximumTimelineScrollOffset({
+    frameCount,
+    visibleTimelineItemCount,
+  });
+  const clampedTimelineScrollOffsetInItemUnits = Math.min(
+    maximumTimelineScrollOffset,
+    Math.max(0, currentTimelineScrollOffsetInItemUnits),
+  );
+
+  return {
+    timelineScrollTargetOffsetInItemUnits,
+    timelineScrollOffsetInItemUnits: snapToTarget
+      ? timelineScrollTargetOffsetInItemUnits
+      : clampedTimelineScrollOffsetInItemUnits,
+  };
 }
 
 function createFrameRecord({

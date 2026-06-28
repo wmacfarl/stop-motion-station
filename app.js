@@ -19,7 +19,7 @@ import {
   adjustPlaybackFramesPerSecond,
   moveSelectedFrameByOffset,
   moveTimelineSelectionByOffset,
-  ensureTimelineSelectionIsVisible,
+  resolveTimelineScrollUpdate,
 } from "./helpers/frame-operations.js";
 import {
   createProjectBrowserTileList,
@@ -48,6 +48,7 @@ import { computeVisibleTimelineItemCount } from "./views/timeline-panel.js";
 const ENABLE_KEYBOARD_DEBUG_LOGGING = false;
 const ENABLE_GAMEPAD_DEBUG_LOGGING = false;
 const ENABLE_CAMERA_STARTUP_DEBUG_LOGGING = false;
+const CAPTURE_PERFORMANCE_LOGGING_STORAGE_KEY = "stop-motion-station:capture-performance-logging";
 let hasAttachedGlobalKeyboardListener = false;
 let hasAttachedGamepadListener = false;
 const THREE_SECOND_COUNTDOWN_SECONDS = 3;
@@ -81,6 +82,20 @@ function playSoundEffect(soundEffectAudioElement) {
 function logCameraStartup(...args) {
   if (ENABLE_CAMERA_STARTUP_DEBUG_LOGGING) {
     console.log("[CAMERA_STARTUP]", ...args);
+  }
+}
+
+function isCapturePerformanceLoggingEnabled() {
+  try {
+    return globalThis.localStorage?.getItem(CAPTURE_PERFORMANCE_LOGGING_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function logCapturePerformance(...args) {
+  if (isCapturePerformanceLoggingEnabled()) {
+    console.info(...args);
   }
 }
 
@@ -1675,7 +1690,7 @@ export default function applicationStore(state, emitter) {
 
     await cleanupReplacedFrameAssetsIfNeeded(insertionResult);
 
-    console.info("Frame capture ready timing", {
+    logCapturePerformance("Frame capture ready timing", {
       frameIdentifier,
       persistenceMode: "background-worker",
       thumbnailCaptureDurationMilliseconds: capturedFrameData.captureDurationMilliseconds,
@@ -1722,7 +1737,7 @@ export default function applicationStore(state, emitter) {
     await cleanupReplacedFrameAssetsIfNeeded(insertionResult);
     await persistCurrentProjectState();
 
-    console.info("Frame capture ready timing", {
+    logCapturePerformance("Frame capture ready timing", {
       frameIdentifier,
       persistenceMode: "synchronous-fallback",
       captureDurationMilliseconds: capturedFrameData.captureDurationMilliseconds,
@@ -1744,8 +1759,10 @@ export default function applicationStore(state, emitter) {
 
     state.frames = insertionResult.frames;
     state.selectedTimelineItem = insertionResult.selectedTimelineItem;
-    updateTimelineScrollTargetAndClampCurrentOffset();
-    animateTimelineScrollOffsetTowardsTargetIfNeeded();
+    cancelTimelineScrollAnimation();
+    updateTimelineScrollTargetAndClampCurrentOffset({
+      snapToTarget: true,
+    });
     videoExportService.notifyFramesChanged(state.currentProjectId);
 
     return insertionResult;
@@ -1768,7 +1785,7 @@ export default function applicationStore(state, emitter) {
     const operationResult = await operation();
     const captureDurationMilliseconds = performance.now() - operationStartedAtMilliseconds;
 
-    console.info("Frame operation timing", {
+    logCapturePerformance("Frame operation timing", {
       frameIdentifier,
       operationName,
       captureDurationMilliseconds,
@@ -1889,31 +1906,32 @@ export default function applicationStore(state, emitter) {
     return state.selectedTimelineItem;
   }
 
-  function updateVisibleTimelineScrollTargetFromFocusedTimelineItem() {
-    state.timelineScrollTargetOffsetInItemUnits = ensureTimelineSelectionIsVisible({
+  function updateTimelineScrollTargetAndClampCurrentOffset({ snapToTarget = false } = {}) {
+    const timelineScrollUpdate = resolveTimelineScrollUpdate({
       selectedTimelineItem: getTimelineItemToKeepVisible(),
-      currentTimelineScrollOffsetInItemUnits: state.timelineScrollTargetOffsetInItemUnits,
+      currentTimelineScrollTargetOffsetInItemUnits: state.timelineScrollTargetOffsetInItemUnits,
+      currentTimelineScrollOffsetInItemUnits: state.timelineScrollOffsetInItemUnits,
       visibleTimelineItemCount: state.visibleTimelineItemCount,
       frameCount: state.frames.length,
+      snapToTarget,
     });
-  }
 
-  function updateTimelineScrollTargetAndClampCurrentOffset() {
-    updateVisibleTimelineScrollTargetFromFocusedTimelineItem();
-
-    const maximumTimelinePosition = state.frames.length * 2;
-    const maximumTimelineScrollOffset = Math.max(
-      0,
-      (maximumTimelinePosition + 1) - Math.max(1, state.visibleTimelineItemCount),
-    );
-    state.timelineScrollOffsetInItemUnits = Math.min(
-      maximumTimelineScrollOffset,
-      Math.max(0, state.timelineScrollOffsetInItemUnits),
-    );
+    state.timelineScrollTargetOffsetInItemUnits =
+      timelineScrollUpdate.timelineScrollTargetOffsetInItemUnits;
+    state.timelineScrollOffsetInItemUnits =
+      timelineScrollUpdate.timelineScrollOffsetInItemUnits;
   }
 
   function animateTimelineScrollOffsetTowardsTargetIfNeeded() {
     if (animationFrameIdentifierForTimelineScroll !== null) {
+      return;
+    }
+
+    const initialTimelineScrollDeltaInItemUnits =
+      state.timelineScrollTargetOffsetInItemUnits - state.timelineScrollOffsetInItemUnits;
+
+    if (Math.abs(initialTimelineScrollDeltaInItemUnits) < 0.001) {
+      state.timelineScrollOffsetInItemUnits = state.timelineScrollTargetOffsetInItemUnits;
       return;
     }
 
@@ -1934,6 +1952,15 @@ export default function applicationStore(state, emitter) {
     };
 
     animationFrameIdentifierForTimelineScroll = window.requestAnimationFrame(animateScrollStep);
+  }
+
+  function cancelTimelineScrollAnimation() {
+    if (animationFrameIdentifierForTimelineScroll === null) {
+      return;
+    }
+
+    window.cancelAnimationFrame(animationFrameIdentifierForTimelineScroll);
+    animationFrameIdentifierForTimelineScroll = null;
   }
 
   function focusApplicationRootForKeyboardInput() {
@@ -2520,8 +2547,6 @@ export default function applicationStore(state, emitter) {
     } catch (captureError) {
       console.error("Failed to capture frame:", captureError);
     }
-
-    emitter.emit("render");
   });
 
   emitter.on("timelapse:start", () => {

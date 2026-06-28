@@ -1,6 +1,16 @@
 import frameStorageService from "./frame-storage-service.js";
 import projectStorageService from "./project-storage-service.js";
 
+const CAPTURE_PERFORMANCE_LOGGING_STORAGE_KEY = "stop-motion-station:capture-performance-logging";
+
+function isCapturePerformanceLoggingEnabled() {
+  try {
+    return globalThis.localStorage?.getItem(CAPTURE_PERFORMANCE_LOGGING_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 class CapturePersistenceService {
   constructor() {
     this.worker = null;
@@ -203,7 +213,9 @@ class CapturePersistenceService {
 
     if (message?.type === "captured-frame-assets-saved") {
       this.resolveWorkerRequest(message.requestId, message);
-      console.info("Captured frame assets saved", message);
+      if (isCapturePerformanceLoggingEnabled()) {
+        console.info("Captured frame assets saved", message);
+      }
       return;
     }
 
