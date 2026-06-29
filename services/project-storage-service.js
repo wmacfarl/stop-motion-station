@@ -6,12 +6,32 @@ class ProjectStorageService {
     this.originPrivateFileSystemRootDirectoryHandle = null;
     this.projectsDirectoryHandle = null;
     this.hasInitializedStorage = false;
+    this.hasRequestedPersistentStorage = false;
   }
 
   async initialize() {
+    await this.requestPersistentStorageIfAvailable();
     await this.getProjectsDirectoryHandle();
     await this.ensureProjectMetadataListFileExists();
     this.hasInitializedStorage = true;
+  }
+
+  async requestPersistentStorageIfAvailable() {
+    if (this.hasRequestedPersistentStorage) {
+      return;
+    }
+
+    this.hasRequestedPersistentStorage = true;
+
+    if (typeof navigator === "undefined" || typeof navigator.storage?.persist !== "function") {
+      return;
+    }
+
+    try {
+      await navigator.storage.persist();
+    } catch (storagePersistenceError) {
+      console.warn("Could not request persistent project storage:", storagePersistenceError);
+    }
   }
 
   async getRootDirectoryHandle() {
@@ -118,6 +138,46 @@ class ProjectStorageService {
       projectMetadata: projectMetadataRecord,
       projectContent: projectContentRecord,
     };
+  }
+
+  async importProject({ projectId, title, frames, createdAtMilliseconds, updatedAtMilliseconds }) {
+    await this.initializeIfNeeded();
+
+    const currentProjectMetadataList = await this.readProjectMetadataList();
+    const existingProjectMetadata = currentProjectMetadataList.find(
+      (projectMetadata) => projectMetadata.id === projectId,
+    );
+
+    if (existingProjectMetadata) {
+      return existingProjectMetadata;
+    }
+
+    const importedAtMilliseconds = Date.now();
+    const safeCreatedAtMilliseconds = createdAtMilliseconds || importedAtMilliseconds;
+    const safeUpdatedAtMilliseconds = updatedAtMilliseconds || safeCreatedAtMilliseconds;
+    const projectThumbnailRecord = extractProjectThumbnailRecordFromFrames(frames);
+    const projectMetadataRecord = {
+      id: projectId,
+      title,
+      createdAtMilliseconds: safeCreatedAtMilliseconds,
+      updatedAtMilliseconds: safeUpdatedAtMilliseconds,
+      thumbnailImageSource: projectThumbnailRecord.thumbnailImageSource,
+      thumbnailStorageKey: projectThumbnailRecord.thumbnailStorageKey,
+    };
+
+    currentProjectMetadataList.push(projectMetadataRecord);
+    await this.writeProjectMetadataList(currentProjectMetadataList);
+    await this.writeProjectContentRecord({
+      projectId,
+      projectContentRecord: {
+        id: projectId,
+        title,
+        createdAtMilliseconds: safeCreatedAtMilliseconds,
+        frames: frames.map(serializeFrameRecordForStorage),
+      },
+    });
+
+    return projectMetadataRecord;
   }
 
   async loadProject({ projectId }) {

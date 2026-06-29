@@ -42,7 +42,13 @@ The generated kiosk launcher reads these environment variables if they are set b
 - `STOP_MOTION_STATION_URL`: local-mode Chromium URL. Defaults to `http://localhost:${STOP_MOTION_STATION_PORT}`.
 - `STOP_MOTION_STATION_REMOTE_URL`: remote-mode Chromium URL. Defaults to `https://wmacfarl.github.io/stop-motion-station/`.
 - `STOP_MOTION_STATION_CHROMIUM_PROFILE`: dedicated Chromium kiosk profile directory. Defaults to `~/.local/share/stop-motion-station/chromium-profile`.
+- `STOP_MOTION_STATION_DEVTOOLS`: set to `1` to open DevTools and enable Chromium remote debugging.
+- `STOP_MOTION_STATION_REMOTE_DEBUGGING_PORT`: remote debugging port when devtools mode is enabled. Defaults to `9222`.
+- `STOP_MOTION_STATION_REMOTE_DEBUGGING_ADDRESS`: remote debugging bind address. Defaults to `127.0.0.1`; use `0.0.0.0` only on a trusted development network.
 - `CHROMIUM_BINARY`: Chromium executable name. Defaults to `chromium-browser`, then falls back to `chromium`.
+
+The installer persists any of those optional environment variables into the
+systemd service when they are set while running `install-kiosk-mode.sh`.
 
 ## Scripts
 
@@ -51,6 +57,7 @@ The generated kiosk launcher reads these environment variables if they are set b
 - `scripts/launch-kiosk.sh --remote` skips the local server and opens `https://wmacfarl.github.io/stop-motion-station/`.
 - `scripts/launch-kiosk.sh --local` forces the local server mode.
 - `scripts/launch-kiosk.sh --url URL` opens a custom URL. In local mode, the local server still starts; in remote mode, no server starts.
+- `scripts/launch-kiosk.sh --devtools` opens DevTools for the kiosk tab and starts Chromium remote debugging.
 
 To install autostart in remote mode, set the run mode when installing:
 
@@ -58,11 +65,51 @@ To install autostart in remote mode, set the run mode when installing:
 STOP_MOTION_STATION_RUN_MODE=remote raspberry-pi/scripts/install-kiosk-mode.sh
 ```
 
+## Kiosk debugging
+
+For a one-off development launch on the Pi:
+
+```sh
+STOP_MOTION_STATION_DEVTOOLS=1 raspberry-pi/scripts/launch-kiosk.sh --remote
+```
+
+To inspect the kiosk from another computer on the same trusted network:
+
+```sh
+STOP_MOTION_STATION_DEVTOOLS=1 \
+STOP_MOTION_STATION_REMOTE_DEBUGGING_ADDRESS=0.0.0.0 \
+raspberry-pi/scripts/launch-kiosk.sh --remote
+```
+
+Then open `http://<pi-ip-address>:9222` from another Chromium browser, or use
+`chrome://inspect` and add `<pi-ip-address>:9222`.
+
+To make the autostart service reboot into remote-debuggable kiosk mode, reinstall
+the service with the development flags:
+
+```sh
+STOP_MOTION_STATION_RUN_MODE=remote \
+STOP_MOTION_STATION_DEVTOOLS=1 \
+STOP_MOTION_STATION_REMOTE_DEBUGGING_ADDRESS=0.0.0.0 \
+raspberry-pi/scripts/install-kiosk-mode.sh
+```
+
+The launcher logs the app URL and Chromium profile directory to stderr, so
+`journalctl --user -u stop-motion-station-kiosk.service` can confirm which
+origin and profile were used on each boot.
+
 ## Chromium profile and keyring prompts
 
 The launcher uses a dedicated Chromium profile and `--password-store=basic` so kiosk startup does not try to unlock the desktop keyring or reuse a normal browser profile.
 
 If Chromium still shows an authentication or keyring prompt, make sure you are launching through `raspberry-pi/scripts/launch-kiosk.sh` and not opening Chromium manually with the default profile.
+
+Projects are stored inside that Chromium profile for the exact app origin. Keep
+`STOP_MOTION_STATION_CHROMIUM_PROFILE` and the app URL stable across reboots;
+switching between `localhost`, `127.0.0.1`, and the GitHub Pages URL creates
+separate browser storage buckets. If a profile does come up empty, backend sync
+will restore projects for the configured table identity before uploading local
+changes.
 
 ## Notes and open tasks
 

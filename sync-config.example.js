@@ -9,7 +9,11 @@
 // Copy to `sync-config.js` (gitignored) only if you need to override something:
 //   - apiBaseUrl: point at a different backend
 //   - disabled:   set true to turn backend sync off entirely
+//   - tableUid:   pin this kiosk to a stable backend table identity
+//   - apiKey:     optional legacy per-table key for older backend setups
 export default {
   apiBaseUrl: "https://smbs.artiswrong.com/api",
+  // tableUid: "kaleidoscope",
+  // apiKey: "your-table-api-key-here",
   // disabled: true,
 };

@@ -10,6 +10,9 @@ LOCAL_APPLICATION_URL="${STOP_MOTION_STATION_URL:-http://localhost:${APPLICATION
 REMOTE_APPLICATION_URL="${STOP_MOTION_STATION_REMOTE_URL:-https://wmacfarl.github.io/stop-motion-station/}"
 CHROMIUM_BINARY="${CHROMIUM_BINARY:-chromium-browser}"
 CHROMIUM_PROFILE_DIRECTORY="${STOP_MOTION_STATION_CHROMIUM_PROFILE:-${HOME}/.local/share/stop-motion-station/chromium-profile}"
+DEVTOOLS_MODE="${STOP_MOTION_STATION_DEVTOOLS:-0}"
+REMOTE_DEBUGGING_PORT="${STOP_MOTION_STATION_REMOTE_DEBUGGING_PORT:-9222}"
+REMOTE_DEBUGGING_ADDRESS="${STOP_MOTION_STATION_REMOTE_DEBUGGING_ADDRESS:-127.0.0.1}"
 STATIC_SERVER_PROCESS_IDENTIFIER=""
 
 while [[ $# -gt 0 ]]; do
@@ -31,18 +34,27 @@ while [[ $# -gt 0 ]]; do
       REMOTE_APPLICATION_URL="$2"
       shift 2
       ;;
+    --devtools)
+      DEVTOOLS_MODE="1"
+      shift
+      ;;
     --help|-h)
       cat <<HELP_EOF
-Usage: raspberry-pi/scripts/launch-kiosk.sh [--local|--remote] [--url URL]
+Usage: raspberry-pi/scripts/launch-kiosk.sh [--local|--remote] [--url URL] [--devtools]
 
 Modes:
   --local   Start a local static server and open http://localhost:4173.
   --remote  Do not start a server; open the GitHub Pages deployment.
+  --devtools
+            Open Chromium DevTools and enable remote debugging.
 
 Environment:
   STOP_MOTION_STATION_RUN_MODE=local|remote
   STOP_MOTION_STATION_URL=http://localhost:4173
   STOP_MOTION_STATION_REMOTE_URL=https://wmacfarl.github.io/stop-motion-station/
+  STOP_MOTION_STATION_DEVTOOLS=1
+  STOP_MOTION_STATION_REMOTE_DEBUGGING_PORT=9222
+  STOP_MOTION_STATION_REMOTE_DEBUGGING_ADDRESS=127.0.0.1
 HELP_EOF
       exit 0
       ;;
@@ -92,16 +104,31 @@ if command -v xset >/dev/null 2>&1; then
   xset s noblank || true
 fi
 
-exec "${CHROMIUM_BINARY}" \
-  --kiosk \
-  --user-data-dir="${CHROMIUM_PROFILE_DIRECTORY}" \
-  --password-store=basic \
-  --no-first-run \
-  --disable-sync \
-  --disable-session-crashed-bubble \
-  --noerrdialogs \
-  --disable-infobars \
-  --check-for-update-interval=31536000 \
-  --autoplay-policy=no-user-gesture-required \
-  --use-fake-ui-for-media-stream \
-  "${APPLICATION_URL}"
+CHROMIUM_ARGUMENTS=(
+  --kiosk
+  --user-data-dir="${CHROMIUM_PROFILE_DIRECTORY}"
+  --password-store=basic
+  --no-first-run
+  --disable-sync
+  --disable-session-crashed-bubble
+  --noerrdialogs
+  --disable-infobars
+  --check-for-update-interval=31536000
+  --autoplay-policy=no-user-gesture-required
+  --use-fake-ui-for-media-stream
+)
+
+echo "Launching Stop Motion Station at ${APPLICATION_URL}" >&2
+echo "Using Chromium profile directory ${CHROMIUM_PROFILE_DIRECTORY}" >&2
+
+if [[ "${DEVTOOLS_MODE}" == "1" || "${DEVTOOLS_MODE}" == "true" || "${DEVTOOLS_MODE}" == "yes" ]]; then
+  CHROMIUM_ARGUMENTS+=(
+    --auto-open-devtools-for-tabs
+    --remote-debugging-address="${REMOTE_DEBUGGING_ADDRESS}"
+    --remote-debugging-port="${REMOTE_DEBUGGING_PORT}"
+  )
+
+  echo "Chromium remote debugging enabled at ${REMOTE_DEBUGGING_ADDRESS}:${REMOTE_DEBUGGING_PORT}" >&2
+fi
+
+exec "${CHROMIUM_BINARY}" "${CHROMIUM_ARGUMENTS[@]}" "${APPLICATION_URL}"

@@ -1,8 +1,12 @@
-import frameStorageService from "./frame-storage-service.js";
+import frameStorageService, {
+  createOriginalFrameStorageKey,
+  createThumbnailFrameStorageKey,
+} from "./frame-storage-service.js";
 import projectStorageService from "./project-storage-service.js";
 
 const SYNC_STATE_FILE_NAME = "sync-state.json";
 const TABLE_UID_COOKIE_NAME = "smbs-table-uid";
+const LEGACY_DEVICE_USER_ID_STORAGE_KEY = "smbs.device-user-id";
 const DEFAULT_TABLE_UID = "kaleidoscope";
 const TABLE_UID_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 3650; // ~10 years
 const DEFAULT_API_BASE_URL = "https://smbs.artiswrong.com/api";
@@ -17,6 +21,7 @@ class SyncService {
   constructor() {
     this.config = null;
     this.tableUid = null;
+    this.remoteUserId = null;
     this.apiKey = null;
     this.apiKeyPromise = null;
     this.syncState = { version: 1, projects: {} };
@@ -81,20 +86,27 @@ class SyncService {
       return false;
     }
 
-    // The table is identified by a UID cookie (default "kaleidoscope"). The UID
-    // is the device identity used to obtain an API key from the backend. The key
-    // itself is never stored — it is held in memory and re-fetched when missing.
-    this.tableUid = resolveTableUid();
+    // Prefer an explicit local config for older kiosk installs. Otherwise the
+    // table is identified by a UID cookie and exchanged for an in-memory key.
+    if (this.config.apiKey) {
+      this.apiKey = this.config.apiKey;
+      this.tableUid = resolveTableUid(this.config.tableUid);
+      this.remoteUserId = this.config.userId ?? resolveLegacyDeviceUserId();
+    } else {
+      this.tableUid = resolveTableUid(this.config.tableUid);
+      this.remoteUserId = this.tableUid;
+    }
 
     await this.loadSyncState();
 
-    // Session-init key acquisition: no in-memory key yet, so resolve the UID
-    // cookie and exchange it for a key now. Failures (e.g. offline) are
-    // non-fatal — the key is re-fetched lazily on the next request.
-    try {
-      await this.ensureApiKey();
-    } catch (apiKeyError) {
-      console.warn("Could not obtain backend API key at startup:", apiKeyError?.message ?? apiKeyError);
+    // Session-init key acquisition is best effort. Failures (e.g. offline) are
+    // non-fatal; the key is re-fetched lazily on the next request.
+    if (!this.apiKey) {
+      try {
+        await this.ensureApiKey();
+      } catch (apiKeyError) {
+        console.warn("Could not obtain backend API key at startup:", apiKeyError?.message ?? apiKeyError);
+      }
     }
 
     this.updateStatus({
@@ -213,6 +225,147 @@ class SyncService {
 
     this.updateStatus({});
     this.startQueueProcessingIfEnabled();
+  }
+
+  async restoreLocalProjectsFromBackendIfEmpty() {
+    const isReady = await this.initialize();
+
+    if (!isReady) {
+      return { restoredProjectCount: 0 };
+    }
+
+    const localProjectMetadataList = await projectStorageService.listProjects({
+      recoverFromContentFiles: true,
+    });
+
+    if (localProjectMetadataList.length > 0) {
+      return { restoredProjectCount: 0 };
+    }
+
+    this.updateStatus({
+      state: "syncing",
+      message: "Restoring projects from backend...",
+    });
+
+    const remoteProjectsResponse = await this.apiRequestJson("/projects/", {
+      method: "GET",
+    });
+    const remoteProjects = normalizeRemoteProjectList(remoteProjectsResponse);
+    let restoredProjectCount = 0;
+
+    for (const remoteProject of remoteProjects) {
+      const didRestoreProject = await this.restoreRemoteProjectToLocalStorage(remoteProject);
+
+      if (didRestoreProject) {
+        restoredProjectCount += 1;
+      }
+    }
+
+    if (restoredProjectCount > 0) {
+      await this.saveSyncState();
+      this.updateStatus({
+        state: "idle",
+        message: `Restored ${restoredProjectCount} project${restoredProjectCount === 1 ? "" : "s"} from backend.`,
+        lastErrorMessage: null,
+      });
+    }
+
+    return { restoredProjectCount };
+  }
+
+  async restoreRemoteProjectToLocalStorage(remoteProject) {
+    if (!remoteProject?.id) {
+      return false;
+    }
+
+    const localProjectId = createLocalProjectIdFromRemoteProjectId(remoteProject.id);
+    const remoteFrames = Array.isArray(remoteProject.frames) ? remoteProject.frames : [];
+    const restoredFrames = [];
+    const uploadedByNumber = {};
+
+    const sortedRemoteFrames = [...remoteFrames].sort((firstFrame, secondFrame) => {
+      return (firstFrame.number ?? 0) - (secondFrame.number ?? 0);
+    });
+
+    for (const remoteFrame of sortedRemoteFrames) {
+      const restoredFrame = await this.restoreRemoteFrameToLocalStorage({
+        remoteProjectId: remoteProject.id,
+        remoteFrame,
+      });
+
+      if (!restoredFrame) {
+        continue;
+      }
+
+      restoredFrames.push(restoredFrame);
+      uploadedByNumber[String(remoteFrame.number ?? restoredFrames.length)] = restoredFrame.id;
+    }
+
+    await projectStorageService.importProject({
+      projectId: localProjectId,
+      title: remoteProject.title || "Restored Project",
+      frames: restoredFrames,
+      createdAtMilliseconds: parseRemoteTimestampMilliseconds(remoteProject.created_at),
+      updatedAtMilliseconds: parseRemoteTimestampMilliseconds(remoteProject.updated_at),
+    });
+
+    this.syncState.projects[localProjectId] = {
+      remoteId: remoteProject.id,
+      title: remoteProject.title || "Restored Project",
+      uploadedByNumber,
+    };
+
+    return true;
+  }
+
+  async restoreRemoteFrameToLocalStorage({ remoteProjectId, remoteFrame }) {
+    if (!remoteFrame?.image) {
+      return null;
+    }
+
+    const frameNumber = remoteFrame.number ?? 0;
+    const frameId = `remote-${remoteProjectId}-frame-${frameNumber}`;
+
+    try {
+      const frameImageResponse = await fetch(remoteFrame.image);
+
+      if (!frameImageResponse.ok) {
+        throw new SyncError(
+          `Backend frame image responded ${frameImageResponse.status}: ${remoteFrame.image}`,
+          frameImageResponse.status,
+        );
+      }
+
+      const frameImageBlob = await frameImageResponse.blob();
+      const originalStorageKey = createOriginalFrameStorageKey(frameId);
+      const thumbnailStorageKey = createThumbnailFrameStorageKey(frameId);
+
+      await frameStorageService.saveOriginalFrameBlob({
+        frameId,
+        storageKey: originalStorageKey,
+        blob: frameImageBlob,
+      });
+      await frameStorageService.saveThumbnailFrameBlob({
+        frameId,
+        storageKey: thumbnailStorageKey,
+        blob: frameImageBlob,
+      });
+
+      return {
+        id: frameId,
+        originalStorageKey,
+        thumbnailStorageKey,
+      };
+    } catch (frameRestoreError) {
+      console.warn("Could not download backend frame during restore:", remoteFrame.image, frameRestoreError);
+
+      return {
+        id: frameId,
+        timelineImageSource: remoteFrame.image,
+        previewImageSource: remoteFrame.image,
+        playbackImageSource: remoteFrame.image,
+      };
+    }
   }
 
   async startQueueProcessingIfEnabled() {
@@ -364,10 +517,22 @@ class SyncService {
       }
     }
 
+    const restoredRemoteId = parseRemoteProjectIdFromLocalProjectId(projectId);
+
+    if (restoredRemoteId !== null) {
+      projectSyncEntry = {
+        remoteId: restoredRemoteId,
+        title,
+        uploadedByNumber: {},
+      };
+      this.syncState.projects[projectId] = projectSyncEntry;
+      return projectSyncEntry;
+    }
+
     const createdProject = await this.apiRequestJson("/projects/", {
       method: "POST",
       jsonBody: {
-        user_id: this.tableUid,
+        user_id: this.remoteUserId ?? this.tableUid,
         title,
         is_public: false,
       },
@@ -395,14 +560,14 @@ class SyncService {
       const frameNumber = frameIndex + 1;
       const frameNumberKey = String(frameNumber);
 
+      if (uploadedByNumber[frameNumberKey] === frameRecord.id) {
+        continue;
+      }
+
       if (!frameRecord?.originalStorageKey) {
         // Image not persisted yet; leave this position for a later pass so we
         // never upload a different frame's image to this number.
         deferredFrameForLaterRetry = true;
-        continue;
-      }
-
-      if (uploadedByNumber[frameNumberKey] === frameRecord.id) {
         continue;
       }
 
@@ -653,16 +818,26 @@ async function loadSyncConfig() {
     // No sync-config.js present; fall back to defaults.
   }
 
+  const configuredApiBaseUrl = normalizeOptionalConfigString(fileConfig.apiBaseUrl) ?? DEFAULT_API_BASE_URL;
+
   return {
-    apiBaseUrl: (fileConfig.apiBaseUrl ?? DEFAULT_API_BASE_URL).replace(/\/+$/, ""),
+    apiBaseUrl: configuredApiBaseUrl.replace(/\/+$/, ""),
     disabled: Boolean(fileConfig.disabled),
+    apiKey: normalizeOptionalConfigString(fileConfig.apiKey),
+    tableUid: normalizeOptionalConfigString(fileConfig.tableUid),
+    userId: normalizeOptionalConfigString(fileConfig.userId),
   };
 }
 
 // Reads the table UID from its cookie, creating the cookie with the default UID
 // ("kaleidoscope") if it does not exist yet. Replace the cookie value with a
 // unique string to give this table its own identity.
-function resolveTableUid() {
+function resolveTableUid(configuredTableUid = null) {
+  if (configuredTableUid) {
+    writeCookie(TABLE_UID_COOKIE_NAME, configuredTableUid, TABLE_UID_COOKIE_MAX_AGE_SECONDS);
+    return configuredTableUid;
+  }
+
   const existingTableUid = readCookie(TABLE_UID_COOKIE_NAME);
 
   if (existingTableUid) {
@@ -671,6 +846,66 @@ function resolveTableUid() {
 
   writeCookie(TABLE_UID_COOKIE_NAME, DEFAULT_TABLE_UID, TABLE_UID_COOKIE_MAX_AGE_SECONDS);
   return DEFAULT_TABLE_UID;
+}
+
+function resolveLegacyDeviceUserId() {
+  try {
+    const existingDeviceUserId = globalThis.localStorage?.getItem(LEGACY_DEVICE_USER_ID_STORAGE_KEY);
+
+    if (existingDeviceUserId) {
+      return existingDeviceUserId;
+    }
+
+    const generatedDeviceUserId = createDeviceUserId();
+    globalThis.localStorage?.setItem(LEGACY_DEVICE_USER_ID_STORAGE_KEY, generatedDeviceUserId);
+    return generatedDeviceUserId;
+  } catch {
+    return createDeviceUserId();
+  }
+}
+
+function createDeviceUserId() {
+  const randomSuffix = Math.random().toString(16).slice(2, 10);
+  return `device-${Date.now()}-${randomSuffix}`;
+}
+
+function normalizeOptionalConfigString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeRemoteProjectList(remoteProjectsResponse) {
+  if (Array.isArray(remoteProjectsResponse)) {
+    return remoteProjectsResponse;
+  }
+
+  if (Array.isArray(remoteProjectsResponse?.results)) {
+    return remoteProjectsResponse.results;
+  }
+
+  return [];
+}
+
+function createLocalProjectIdFromRemoteProjectId(remoteProjectId) {
+  return `remote-project-${remoteProjectId}`;
+}
+
+function parseRemoteProjectIdFromLocalProjectId(localProjectId) {
+  const remoteProjectMatch = /^remote-project-(\d+)$/.exec(localProjectId);
+
+  if (!remoteProjectMatch) {
+    return null;
+  }
+
+  return Number.parseInt(remoteProjectMatch[1], 10);
+}
+
+function parseRemoteTimestampMilliseconds(remoteTimestamp) {
+  if (!remoteTimestamp) {
+    return null;
+  }
+
+  const parsedTimestamp = Date.parse(remoteTimestamp);
+  return Number.isFinite(parsedTimestamp) ? parsedTimestamp : null;
 }
 
 function readCookie(name) {

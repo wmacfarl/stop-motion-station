@@ -119,9 +119,9 @@ create the cookie with the default UID `kaleidoscope` → POST the UID to
 The project browser and editor show a "Backend sync" indicator (ready / syncing
 / synced / retrying).
 
-An optional `sync-config.js` (copy from `sync-config.example.js`) can override
-the backend `apiBaseUrl` or set `disabled: true` to turn sync off. It holds no
-key and is not required.
+An optional `sync-config.js` (copy from `sync-config.example.js`) can pin a
+stable `tableUid`, override the backend `apiBaseUrl`, set `disabled: true` to
+turn sync off, or provide a legacy per-table `apiKey` for older installs.
 
 ### Behavior
 
@@ -138,6 +138,17 @@ key and is not required.
   re-enqueues every project and retries — covering transient outages.
 - The backend has no project-delete endpoint, so deleting a project locally
   only forgets its sync bookkeeping — the remote copy is left in place.
+
+### Local storage durability
+
+Projects live in browser storage for the exact application origin and Chromium
+profile. Keep the kiosk pointed at the same URL (`http://localhost:4173` by
+default) and the same `STOP_MOTION_STATION_CHROMIUM_PROFILE` directory. On
+startup the app requests persistent browser storage, but changing origin,
+launching with a fresh profile, or clearing site data can still make local
+projects appear empty. If that happens and backend sync is available, the app
+restores projects for the current table identity from the backend before
+running the normal upload sync.
 
 ### Background video export
 

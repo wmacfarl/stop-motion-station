@@ -8,6 +8,29 @@ AUTOSTART_DIRECTORY="${HOME}/.config/autostart"
 SERVICE_FILE_PATH="${SYSTEMD_USER_DIRECTORY}/stop-motion-station-kiosk.service"
 AUTOSTART_FILE_PATH="${AUTOSTART_DIRECTORY}/stop-motion-station-kiosk.desktop"
 LAUNCH_SCRIPT_PATH="${REPOSITORY_ROOT}/raspberry-pi/scripts/launch-kiosk.sh"
+OPTIONAL_SERVICE_ENVIRONMENT_LINES=""
+
+append_optional_service_environment() {
+  local environment_name="$1"
+  local environment_value="${!environment_name:-}"
+
+  if [[ -n "${environment_value}" ]]; then
+    OPTIONAL_SERVICE_ENVIRONMENT_LINES+="Environment=${environment_name}=${environment_value}"$'\n'
+  fi
+}
+
+for optional_environment_name in \
+  STOP_MOTION_STATION_PORT \
+  STOP_MOTION_STATION_URL \
+  STOP_MOTION_STATION_REMOTE_URL \
+  STOP_MOTION_STATION_CHROMIUM_PROFILE \
+  STOP_MOTION_STATION_DEVTOOLS \
+  STOP_MOTION_STATION_REMOTE_DEBUGGING_PORT \
+  STOP_MOTION_STATION_REMOTE_DEBUGGING_ADDRESS \
+  CHROMIUM_BINARY
+do
+  append_optional_service_environment "${optional_environment_name}"
+done
 
 mkdir -p "${SYSTEMD_USER_DIRECTORY}" "${AUTOSTART_DIRECTORY}"
 chmod +x "${LAUNCH_SCRIPT_PATH}"
@@ -21,6 +44,7 @@ After=graphical-session.target
 Type=simple
 Environment=STOP_MOTION_STATION_ROOT=${REPOSITORY_ROOT}
 Environment=STOP_MOTION_STATION_RUN_MODE=${STOP_MOTION_STATION_RUN_MODE:-local}
+${OPTIONAL_SERVICE_ENVIRONMENT_LINES}
 ExecStart=${LAUNCH_SCRIPT_PATH}
 Restart=on-failure
 RestartSec=5

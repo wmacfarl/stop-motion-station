@@ -1129,7 +1129,7 @@ export default function applicationStore(state, emitter) {
   }
 
   function requestProjectBackendSync(projectId) {
-    if (!projectId || !syncService.isEnabled()) {
+    if (!projectId) {
       return;
     }
 
@@ -1196,6 +1196,30 @@ export default function applicationStore(state, emitter) {
       })
       .catch((projectPersistenceError) => {
         console.error("Failed to persist project state:", projectPersistenceError);
+      });
+  }
+
+  function flushCurrentProjectStateBeforePageSuspends() {
+    if (state.appMode !== "project-editor") {
+      return;
+    }
+
+    if (scheduledProjectPersistenceTimeoutIdentifier !== null) {
+      window.clearTimeout(scheduledProjectPersistenceTimeoutIdentifier);
+      scheduledProjectPersistenceTimeoutIdentifier = null;
+    }
+
+    const projectPersistenceSnapshot = latestScheduledProjectPersistenceSnapshot
+      ?? createCurrentProjectPersistenceSnapshot();
+    latestScheduledProjectPersistenceSnapshot = null;
+
+    if (!projectPersistenceSnapshot) {
+      return;
+    }
+
+    capturePersistenceService.persistProjectState(projectPersistenceSnapshot)
+      .catch((projectPersistenceError) => {
+        console.error("Failed to flush project state before page suspend:", projectPersistenceError);
       });
   }
 
@@ -1977,6 +2001,12 @@ export default function applicationStore(state, emitter) {
     window.addEventListener("click", focusApplicationRootForKeyboardInput);
     window.addEventListener("resize", handleViewportChange);
     window.addEventListener("orientationchange", handleViewportChange);
+    window.addEventListener("pagehide", flushCurrentProjectStateBeforePageSuspends);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        flushCurrentProjectStateBeforePageSuspends();
+      }
+    });
     document.addEventListener("fullscreenchange", () => {
       handleViewportChange();
       scheduleDelayedLayoutRefresh();
@@ -2006,10 +2036,28 @@ export default function applicationStore(state, emitter) {
     // Track network connectivity for the top-right status dot, and resume
     // syncing as soon as the connection comes back.
     state.isOnline = typeof navigator.onLine === "boolean" ? navigator.onLine : true;
+    const restoreLocalProjectsThenRequestFullSync = async () => {
+      try {
+        const restoreResult = await syncService.restoreLocalProjectsFromBackendIfEmpty();
+
+        if (restoreResult.restoredProjectCount > 0) {
+          await reloadProjectsFromStorage({
+            recoverFromContentFiles: true,
+          });
+          state.selectedProjectBrowserIndex = 0;
+          emitter.emit("render");
+        }
+      } catch (backendRestoreError) {
+        console.warn("Backend restore could not complete:", backendRestoreError);
+      }
+
+      await syncService.requestFullSync();
+    };
+
     window.addEventListener("online", () => {
       state.isOnline = true;
       emitter.emit("render");
-      syncService.requestFullSync().catch(() => {});
+      restoreLocalProjectsThenRequestFullSync().catch(() => {});
     });
     window.addEventListener("offline", () => {
       state.isOnline = false;
@@ -2018,8 +2066,8 @@ export default function applicationStore(state, emitter) {
 
     // Push every locally saved project to the backend, then keep syncing as the
     // user makes progress (wired into the persistence paths above).
-    syncService.requestFullSync().catch((fullSyncError) => {
-      console.warn("Initial backend sync could not start:", fullSyncError);
+    restoreLocalProjectsThenRequestFullSync().catch((fullSyncError) => {
+      console.warn("Initial backend restore/sync could not start:", fullSyncError);
     });
 
     videoExportService.setStatusListener((nextVideoExportStatus) => {
