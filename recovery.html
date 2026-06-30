@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Stop Motion Recovery</title>
+    <link rel="stylesheet" type="text/css" href="./styles/recovery.css" />
+    <script src="./recovery.js" type="module"></script>
+  </head>
+
+  <body>
+    <main class="recovery-shell">
+      <header class="recovery-header">
+        <div>
+          <p class="eyebrow">Stop Motion Station</p>
+          <h1>OPFS Recovery</h1>
+        </div>
+        <div class="origin-card">
+          <span class="origin-label">Origin</span>
+          <span id="originValue" class="origin-value">Checking...</span>
+        </div>
+      </header>
+
+      <section class="action-bar" aria-label="Recovery actions">
+        <button id="rescanButton" type="button">Rescan</button>
+        <button id="restoreMetadataButton" type="button" disabled>Restore Project Index</button>
+        <button id="createProjectButton" type="button" disabled>Create Project From Orphan Frames</button>
+        <button id="downloadReportButton" type="button" disabled>Download Report</button>
+        <a class="app-link" href="./">Open App</a>
+      </section>
+
+      <section id="statusPanel" class="status-panel" aria-live="polite">
+        Ready to scan browser storage.
+      </section>
+
+      <section id="summaryGrid" class="summary-grid" aria-label="Storage summary"></section>
+
+      <section class="content-grid">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Projects</h2>
+            <span id="projectsCount" class="count-pill">0</span>
+          </div>
+          <div id="projectsList" class="project-list"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Frames</h2>
+            <span id="framesCount" class="count-pill">0</span>
+          </div>
+          <div id="framesList" class="frame-list"></div>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Log</h2>
+        </div>
+        <pre id="messageLog" class="message-log"></pre>
+      </section>
+    </main>
+  </body>
+</html>
